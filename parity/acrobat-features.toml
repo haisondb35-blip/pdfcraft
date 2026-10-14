@@ -6721,7 +6721,7 @@ status = "partial"
 commands = ["scan.create"]
 tools = ["scanners", "scan"]
 evidence = ["crates/ui-egui/tests/scan.rs::flatbed_pages_collect_until_done_makes_a_new_pdf", "crates/scan/src/tests.rs::the_wia_script_runs", "crates/scan/src/tests.rs::sane_device_lists_and_options", "crates/automation/tests/automation.rs::scanning_through_tools"]
-notes = "WIA on Windows (through its Automation Layer, so network scanners Windows found are included) and SANE's scanimage on Linux and BSD: flatbed page by page, feeder and duplex, colour/greyscale/black and white, 150-600 dpi, recognize text afterwards. Missing: TWAIN (needs native calls), ICA on macOS, the driver's own dialog, page size and brightness/contrast settings, blank-page removal, scan presets; not yet tried on a physical scanner"
+notes = "WIA on Windows (through its Automation Layer, so network scanners Windows found are included) and SANE's scanimage on Linux and BSD: flatbed page by page, feeder and duplex, colour/greyscale/black and white, 150-600 dpi, recognize text afterwards. Missing: TWAIN (needs native calls), ICA on macOS, the driver's own dialog, page size and brightness/contrast settings, blank-page removal, scan presets; tried on a Brother MFC-L2700DW over the network (WSD): flatbed scans, the feeder is listed"
 
 [[feature]]
 id = "ocr.scan-presets"

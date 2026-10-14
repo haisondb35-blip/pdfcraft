@@ -288,8 +288,8 @@ update the numbers.
 
 ### 20. Scanners, GPU page rendering, pen pressure, Read Out Loud
 
-- **Missing:** TWAIN and ICA scanning (WIA on Windows and SANE on Linux and BSD landed, `crates/scan`; not yet
-  tried on a physical scanner); GPU-accelerated page rendering (pages are rasterized on
+- **Missing:** TWAIN and ICA scanning (WIA on Windows and SANE on Linux and BSD landed, `crates/scan`; tried on
+  a Brother MFC-L2700DW network scanner); GPU-accelerated page rendering (pages are rasterized on
   the CPU and uploaded); pressure-sensitive ink; platform text-to-speech.
 - **Estimate:** 25–50 h; scanners need hardware. **Doc:** [hardware-parity.md](hardware-parity.md).
 

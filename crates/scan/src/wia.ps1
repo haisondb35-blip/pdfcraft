@@ -56,9 +56,15 @@ try {
             $name = ''; $maker = ''
             try { $name = $info.Properties.Item('Name').Value } catch { }
             try { $maker = $info.Properties.Item('Manufacturer').Value } catch { }
+            # Windows' own WSD driver reports itself as the maker; the name already says the brand.
+            if ($maker -eq 'Microsoft') { $maker = '' }
             $sources = @('flatbed')
             try {
-                $caps = Prop $info.Properties $DOC_HANDLING_CAPS
+                # The paper sources are a property of the connected device (a WSD network scanner
+                # lists none before it is connected); an offline one keeps the device info's, if any.
+                $caps = $null
+                try { $caps = Prop $info.Connect().Properties $DOC_HANDLING_CAPS } catch { }
+                if ($caps -eq $null) { $caps = Prop $info.Properties $DOC_HANDLING_CAPS }
                 if ($caps -ne $null) {
                     $sources = @()
                     if ($caps.Value -band $FLATBED) { $sources += 'flatbed' }
@@ -89,12 +95,16 @@ try {
     SetProp $item.Properties $YRES $dpi
     $format = if ($env:PDFCRAFT_SCAN_MODE -eq 'bw') { $FORMAT_PNG } else { $FORMAT_JPEG }
     $ext = if ($format -eq $FORMAT_PNG) { 'png' } else { 'jpg' }
+    # Ask only for a format the scanner offers: network (WSD) scanners often give BMP alone, and
+    # asking for another made the transfer come back in a form that couldn't be used.
+    $offered = @(); try { foreach ($f in $item.Formats) { $offered += "$f" } } catch { }
+    $transfer = if ($offered -contains $format) { $format } elseif ($offered -contains $FORMAT_PNG) { $FORMAT_PNG } else { $FORMAT_BMP }
     $out = $env:PDFCRAFT_SCAN_OUT
     $max = [int]$env:PDFCRAFT_SCAN_MAX_PAGES
     $n = 0
     while ($true) {
         try {
-            $img = $item.Transfer($format)
+            $img = $item.Transfer($transfer)
         } catch {
             $hex = '{0:X8}' -f $_.Exception.HResult
             # The feeder ran out of paper after at least one page: the batch is done.
@@ -102,16 +112,31 @@ try {
             Fail $_
             exit 0
         }
-        # Some drivers ignore the format asked for: convert what came back.
-        if ($img.FormatID -ne $format) {
-            $ip = New-Object -ComObject WIA.ImageProcess
-            $ip.Filters.Add($ip.FilterInfos.Item('Convert').FilterID)
-            $ip.Filters.Item(1).Properties.Item('FormatID').Value = $format
-            $img = $ip.Apply($img)
-        }
         $n++
         $file = Join-Path $out ('page-{0:D4}.{1}' -f $n, $ext)
-        $img.SaveFile($file)
+        if ("$($img.FormatID)" -eq $format) {
+            $img.SaveFile($file)
+        } else {
+            # Another format came back (BMP, PNG): save it and re-encode it with Windows' own
+            # imaging, JPEG for colour and grey (a 300 dpi page is ~25 MB as BMP), PNG for black and white.
+            $raw = Join-Path $out ('page-{0:D4}.raw.{1}' -f $n, $img.FileExtension)
+            $img.SaveFile($raw)
+            Add-Type -AssemblyName System.Drawing
+            $bmp = [System.Drawing.Image]::FromFile($raw)
+            try {
+                if ($ext -eq 'jpg') {
+                    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
+                    $params = New-Object System.Drawing.Imaging.EncoderParameters 1
+                    $params.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]85)
+                    $bmp.Save($file, $codec, $params)
+                } else {
+                    $bmp.Save($file, [System.Drawing.Imaging.ImageFormat]::Png)
+                }
+            } finally {
+                $bmp.Dispose()
+                Remove-Item -LiteralPath $raw -Force -ErrorAction SilentlyContinue
+            }
+        }
         Emit @{ page = $n; file = $file; dpi = $dpi }
         if (-not $feed -or ($max -gt 0 -and $n -ge $max)) { break }
     }
