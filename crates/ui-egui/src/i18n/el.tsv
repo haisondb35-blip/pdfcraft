@@ -2364,3 +2364,16 @@ animation effects	Off	Ανενεργά
 	This document is trying to open a local file:	Αυτό το έγγραφο προσπαθεί να ανοίξει ένα τοπικό αρχείο:
 	Move tag earlier	Μετακίνηση ετικέτας νωρίτερα
 	Move tag later	Μετακίνηση ετικέτας αργότερα
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Σαρωτής
+	Scan to PDF	Σάρωση σε PDF
+	Insert from scanner	Εισαγωγή από σαρωτή
+	Create PDF from scanner…	Δημιουργία PDF από σαρωτή…
+	Insert pages from scanner…	Εισαγωγή σελίδων από σαρωτή…
+	Flatbed	Γυάλινη επιφάνεια
+	Document feeder	Τροφοδότης εγγράφων
+	Looking for scanners…	Αναζήτηση σαρωτών…
+	Search again	Νέα αναζήτηση
+	Recognize text after scanning	Αναγνώριση κειμένου μετά τη σάρωση
+	Scanning… page {n}	Σάρωση… σελίδα {n}

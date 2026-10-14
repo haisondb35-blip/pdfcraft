@@ -2428,3 +2428,16 @@ animation effects	Off	Vypnuto
 	This document is trying to open a local file:	Tento dokument se pokouší otevřít místní soubor:
 	Move tag earlier	Přesunout značku dříve
 	Move tag later	Přesunout značku později
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Skener
+	Scan to PDF	Skenovat do PDF
+	Insert from scanner	Vložit ze skeneru
+	Create PDF from scanner…	Vytvořit PDF ze skeneru…
+	Insert pages from scanner…	Vložit stránky ze skeneru…
+	Flatbed	Skleněná plocha
+	Document feeder	Podavač dokumentů
+	Looking for scanners…	Hledání skenerů…
+	Search again	Hledat znovu
+	Recognize text after scanning	Po naskenování rozpoznat text
+	Scanning… page {n}	Skenování… stránka {n}

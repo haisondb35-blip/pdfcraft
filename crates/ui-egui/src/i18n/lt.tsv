@@ -2598,3 +2598,16 @@ key	Space	Tarpas
 	This document is trying to open a local file:	Šis dokumentas bando atverti vietinį failą:
 	Move tag earlier	Perkelti žymą anksčiau
 	Move tag later	Perkelti žymą vėliau
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Skeneris
+	Scan to PDF	Nuskaityti į PDF
+	Insert from scanner	Įterpti iš skenerio
+	Create PDF from scanner…	Sukurti PDF iš skenerio…
+	Insert pages from scanner…	Įterpti puslapius iš skenerio…
+	Flatbed	Skenerio stiklas
+	Document feeder	Dokumentų tiektuvas
+	Looking for scanners…	Ieškoma skenerių…
+	Search again	Ieškoti dar kartą
+	Recognize text after scanning	Nuskaičius atpažinti tekstą
+	Scanning… page {n}	Nuskaitoma… puslapis {n}

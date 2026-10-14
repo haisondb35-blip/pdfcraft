@@ -2318,3 +2318,16 @@ animation effects	Off	关
 	This document is trying to open a local file:	此文档正尝试打开本地文件：
 	Move tag earlier	将标签前移
 	Move tag later	将标签后移
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	扫描仪
+	Scan to PDF	扫描为 PDF
+	Insert from scanner	从扫描仪插入
+	Create PDF from scanner…	从扫描仪创建 PDF…
+	Insert pages from scanner…	从扫描仪插入页面…
+	Flatbed	平板玻璃
+	Document feeder	自动进纸器
+	Looking for scanners…	正在查找扫描仪…
+	Search again	重新查找
+	Recognize text after scanning	扫描后识别文本
+	Scanning… page {n}	正在扫描… 第 {n} 页

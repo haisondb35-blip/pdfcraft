@@ -2228,3 +2228,16 @@ animation effects	Off	關
 	This document is trying to open a local file:	此文件正嘗試開啟本機檔案：
 	Move tag earlier	將標記前移
 	Move tag later	將標記後移
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	掃描器
+	Scan to PDF	掃描為 PDF
+	Insert from scanner	從掃描器插入
+	Create PDF from scanner…	從掃描器建立 PDF…
+	Insert pages from scanner…	從掃描器插入頁面…
+	Flatbed	平台玻璃
+	Document feeder	自動送紙器
+	Looking for scanners…	正在尋找掃描器…
+	Search again	重新尋找
+	Recognize text after scanning	掃描後辨識文字
+	Scanning… page {n}	正在掃描… 第 {n} 頁

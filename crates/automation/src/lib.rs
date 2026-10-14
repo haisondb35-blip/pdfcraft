@@ -24,6 +24,7 @@ mod measure;
 mod printing;
 mod reading;
 mod redact;
+mod scanning;
 mod signing;
 mod text_cache;
 mod tools;
@@ -111,6 +112,8 @@ pub struct Automation {
     renderers: HashMap<DocId, (Arc<Vec<u8>>, PageRenderer)>,
     /// Extracted page text, under one memory budget across all open documents.
     texts: TextCache,
+    /// Where `scanners` and `scan` find scanners (the system's; tests use a simulated one).
+    scan_backend: Arc<dyn pdfcraft_engine::scan::Backend>,
 }
 
 impl Default for Automation {
@@ -121,7 +124,13 @@ impl Default for Automation {
 
 impl Automation {
     pub fn new() -> Self {
-        Self { session: Session::new(), root: None, renderers: HashMap::new(), texts: TextCache::default() }
+        Self {
+            session: Session::new(),
+            root: None,
+            renderers: HashMap::new(),
+            texts: TextCache::default(),
+            scan_backend: pdfcraft_engine::scan::system(),
+        }
     }
 
     /// Confine every path the tools read or write to `root` (relative paths resolve inside it).
@@ -687,6 +696,8 @@ impl Automation {
             "redact_clear" => self.redact_clear(&a)?,
             "doc_hidden_info" => self.doc_hidden_info(&a)?,
             "printers" => self.printers()?,
+            "scanners" => self.scanners()?,
+            "scan" => self.scan(&a)?,
             "printer_options" => self.printer_options(&a)?,
             "link_list" => self.link_list(&a)?,
             "link_open" => self.link_open(&a)?,

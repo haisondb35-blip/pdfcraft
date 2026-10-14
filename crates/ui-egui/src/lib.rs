@@ -52,6 +52,7 @@ mod marks_ui;
 mod measure_ui;
 mod ocr_ui;
 mod optimize_ui;
+mod scan_ui;
 mod search_ui;
 mod sign_ui;
 mod stamps_ui;
@@ -316,6 +317,8 @@ pub enum Dialog {
     AccessibilityOptions,
     /// Scan & OCR ▸ Recognize text.
     RecognizeText,
+    /// Scan & OCR ▸ Scan to PDF, Organize pages ▸ Insert from scanner.
+    Scan,
     /// The JavaScript console (⌘J).
     JsConsole,
     /// Document JavaScripts.
@@ -638,6 +641,11 @@ pub struct PdfCraftApp {
     pub ocr_draft: ocr_ui::OcrDraft,
     pub ocr_run: Option<ocr_ui::OcrRun>,
     pub ocr_batch: Option<std::sync::Arc<std::sync::Mutex<ocr_ui::BatchProgress>>>,
+    /// Scan & OCR ▸ Scan: the dialog's choices, the open dialog's pages and jobs, and where
+    /// scanners are found (the system's; tests use a simulated one).
+    pub scan_draft: scan_ui::ScanDraft,
+    pub scan: Option<scan_ui::ScanSession>,
+    pub scan_backend: std::sync::Arc<dyn pdfcraft_engine::scan::Backend>,
     /// Background jobs (OCR, actions, listing pinned folders) run inline instead (tests).
     pub run_inline: bool,
     /// Action Wizard: the user's actions, the dialog state, the running action and (tests) the
@@ -956,6 +964,9 @@ impl PdfCraftApp {
             ocr_draft: ocr_ui::OcrDraft::default(),
             ocr_run: None,
             ocr_batch: None,
+            scan_draft: scan_ui::ScanDraft::default(),
+            scan: None,
+            scan_backend: pdfcraft_engine::scan::system(),
             run_inline: false,
             custom_actions: Vec::new(),
             wizard: Default::default(),

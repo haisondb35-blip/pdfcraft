@@ -5679,3 +5679,43 @@ fn absolute_gotor_consent_does_not_bypass_validation_or_passwords() {
     assert_eq!(opened["document"]["encrypted"], true);
     assert_eq!(opened["destination_applied"], true);
 }
+
+/// Pages a simulated scanner serves: white JPEGs, 100 × 150 pixels.
+fn scanned_pages(n: usize) -> Vec<pdfcraft_engine::scan::ScannedPage> {
+    let mut jpeg = Vec::new();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(100, 150, image::Rgb([255, 255, 255])))
+        .write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
+        .unwrap();
+    (0..n).map(|i| pdfcraft_engine::scan::ScannedPage { name: format!("page-{i}.jpg"), bytes: jpeg.clone(), dpi: 72 }).collect()
+}
+
+#[test]
+fn scanning_through_tools() {
+    let dir = workdir("scan");
+    let sim = pdfcraft_engine::scan::Simulated::with_pages(scanned_pages(3));
+    let mut a = auto(&dir).with_scan_backend(std::sync::Arc::new(sim));
+    let list = ok(&mut a, "scanners", json!({}));
+    assert_eq!(list["count"], 1);
+    assert_eq!(list["scanners"][0]["sources"], json!(["flatbed", "feeder", "duplex"]));
+    // The flatbed scans one page into a new document, at the resolution asked for.
+    let one = ok(&mut a, "scan", json!({ "dpi": 144 }));
+    assert_eq!((one["pages_scanned"].as_u64(), one["document"]["pages"].as_u64()), (Some(1), Some(1)), "{one}");
+    // The feeder scans every sheet; with doc they go into it, at the page asked for.
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    let into = ok(&mut a, "scan", json!({ "doc": doc, "at": 2, "source": "feeder", "mode": "gray" }));
+    assert_eq!((into["pages_scanned"].as_u64(), into["document"]["pages"].as_u64()), (Some(3), Some(6)), "{into}");
+    assert_eq!(page_text(&mut a, doc)[0], "Page 1");
+    assert_eq!(page_text(&mut a, doc)[4], "Page 2", "the scans went before page 2");
+    // A written copy, not opened.
+    let saved = ok(&mut a, "scan", json!({ "source": "feeder", "max_pages": 2, "out": "scan.pdf" }));
+    assert!(saved.get("document").is_none() && dir.join("scan.pdf").is_file(), "{saved}");
+    for bad in
+        [json!({ "source": "tray" }), json!({ "mode": "sepia" }), json!({ "dpi": 5 }), json!({ "scanner": "nope" }), json!({ "doc": doc, "at": 99 })]
+    {
+        assert!(matches!(a.call("scan", &bad), Err(ToolError::InvalidArgs(_))), "{bad}");
+    }
+    // No scanner at all.
+    let mut none = auto(&dir).with_scan_backend(std::sync::Arc::new(pdfcraft_engine::scan::Simulated::default()));
+    assert_eq!(ok(&mut none, "scanners", json!({}))["count"], 0);
+    assert!(matches!(none.call("scan", &json!({})), Err(ToolError::Failed(_))));
+}

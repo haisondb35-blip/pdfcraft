@@ -2376,3 +2376,16 @@ animation effects	Off	Вимкнено
 	This document is trying to open a local file:	Цей документ намагається відкрити локальний файл:
 	Move tag earlier	Перемістити тег раніше
 	Move tag later	Перемістити тег пізніше
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Сканер
+	Scan to PDF	Сканувати в PDF
+	Insert from scanner	Вставити зі сканера
+	Create PDF from scanner…	Створити PDF зі сканера…
+	Insert pages from scanner…	Вставити сторінки зі сканера…
+	Flatbed	Скло сканера
+	Document feeder	Автоподавач документів
+	Looking for scanners…	Пошук сканерів…
+	Search again	Шукати знову
+	Recognize text after scanning	Розпізнати текст після сканування
+	Scanning… page {n}	Сканування… сторінка {n}

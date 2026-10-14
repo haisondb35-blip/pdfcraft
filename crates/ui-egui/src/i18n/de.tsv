@@ -2355,3 +2355,16 @@ animation effects	Off	Aus
 	This document is trying to open a local file:	Dieses Dokument versucht, eine lokale Datei zu öffnen:
 	Move tag earlier	Tag früher verschieben
 	Move tag later	Tag später verschieben
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Scanner
+	Scan to PDF	In PDF scannen
+	Insert from scanner	Vom Scanner einfügen
+	Create PDF from scanner…	PDF vom Scanner erstellen…
+	Insert pages from scanner…	Seiten vom Scanner einfügen…
+	Flatbed	Flachbett
+	Document feeder	Dokumenteneinzug
+	Looking for scanners…	Scanner werden gesucht…
+	Search again	Erneut suchen
+	Recognize text after scanning	Nach dem Scannen Text erkennen
+	Scanning… page {n}	Scannen… Seite {n}

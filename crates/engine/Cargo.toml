@@ -26,6 +26,7 @@ pdfcraft-sign = { workspace = true }
 pdfcraft-optimize = { workspace = true }
 pdfcraft-a11y = { workspace = true }
 pdfcraft-ocr = { workspace = true }
+pdfcraft-scan = { workspace = true }
 pdfcraft-js = { workspace = true }
 pdfcraft-compare = { workspace = true }
 pdfcraft-preflight = { workspace = true }

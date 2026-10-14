@@ -2713,11 +2713,11 @@ title = "Insert pages from a scanner"
 area = "D"
 tier = "P2"
 milestone = "M14"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["page.insert_scan"]
+tools = ["scan"]
+evidence = ["crates/ui-egui/tests/scan.rs::the_feeder_inserts_every_sheet_after_the_current_page_in_one_step", "crates/engine/src/scan.rs::scanned_pages_insert_as_one_undoable_step", "crates/automation/tests/automation.rs::scanning_through_tools"]
+notes = "after the current page, as one undoable step; the tool takes any position. Scanners as in ocr.scanner-acquire"
 
 [[feature]]
 id = "organize.insert-from-web"
@@ -6717,11 +6717,11 @@ title = "Scan from TWAIN/WIA/ICA/SANE scanners"
 area = "I"
 tier = "P2"
 milestone = "M14"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["scan.create"]
+tools = ["scanners", "scan"]
+evidence = ["crates/ui-egui/tests/scan.rs::flatbed_pages_collect_until_done_makes_a_new_pdf", "crates/scan/src/tests.rs::the_wia_script_runs", "crates/scan/src/tests.rs::sane_device_lists_and_options", "crates/automation/tests/automation.rs::scanning_through_tools"]
+notes = "WIA on Windows (through its Automation Layer, so network scanners Windows found are included) and SANE's scanimage on Linux and BSD: flatbed page by page, feeder and duplex, colour/greyscale/black and white, 150-600 dpi, recognize text afterwards. Missing: TWAIN (needs native calls), ICA on macOS, the driver's own dialog, page size and brightness/contrast settings, blank-page removal, scan presets; not yet tried on a physical scanner"
 
 [[feature]]
 id = "ocr.scan-presets"

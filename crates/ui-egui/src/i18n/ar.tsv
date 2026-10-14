@@ -2375,3 +2375,16 @@ animation effects	Off	معطّلة
 	This document is trying to open a local file:	يحاول هذا المستند فتح ملف محلي:
 	Move tag earlier	نقل العلامة للأعلى
 	Move tag later	نقل العلامة للأسفل
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	الماسح الضوئي
+	Scan to PDF	مسح ضوئي إلى PDF
+	Insert from scanner	إدراج من الماسح الضوئي
+	Create PDF from scanner…	إنشاء PDF من الماسح الضوئي…
+	Insert pages from scanner…	إدراج صفحات من الماسح الضوئي…
+	Flatbed	السطح الزجاجي
+	Document feeder	وحدة تغذية المستندات
+	Looking for scanners…	جارٍ البحث عن الماسحات الضوئية…
+	Search again	البحث مرة أخرى
+	Recognize text after scanning	التعرف على النص بعد المسح الضوئي
+	Scanning… page {n}	جارٍ المسح الضوئي… الصفحة {n}

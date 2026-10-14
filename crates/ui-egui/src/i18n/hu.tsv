@@ -2353,3 +2353,16 @@ animation effects	Off	Ki
 	This document is trying to open a local file:	Ez a dokumentum egy helyi fájlt próbál megnyitni:
 	Move tag earlier	Címke korábbra helyezése
 	Move tag later	Címke későbbre helyezése
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Lapolvasó
+	Scan to PDF	Beolvasás PDF-be
+	Insert from scanner	Beszúrás lapolvasóról
+	Create PDF from scanner…	PDF létrehozása lapolvasóról…
+	Insert pages from scanner…	Oldalak beszúrása lapolvasóról…
+	Flatbed	Síkágy
+	Document feeder	Lapadagoló
+	Looking for scanners…	Lapolvasók keresése…
+	Search again	Keresés újra
+	Recognize text after scanning	Szövegfelismerés beolvasás után
+	Scanning… page {n}	Beolvasás… {n}. oldal

@@ -2359,3 +2359,16 @@ animation effects	Off	Izklopljeni
 	This document is trying to open a local file:	Ta dokument poskuša odpreti lokalno datoteko:
 	Move tag earlier	Premakni oznako prej
 	Move tag later	Premakni oznako pozneje
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Optični bralnik
+	Scan to PDF	Optično preberi v PDF
+	Insert from scanner	Vstavi iz optičnega bralnika
+	Create PDF from scanner…	Ustvari PDF iz optičnega bralnika…
+	Insert pages from scanner…	Vstavi strani iz optičnega bralnika…
+	Flatbed	Steklena plošča
+	Document feeder	Podajalnik dokumentov
+	Looking for scanners…	Iskanje optičnih bralnikov…
+	Search again	Išči znova
+	Recognize text after scanning	Po optičnem branju prepoznaj besedilo
+	Scanning… page {n}	Optično branje… stran {n}

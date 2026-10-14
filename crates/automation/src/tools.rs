@@ -472,6 +472,27 @@ pub fn tools() -> Vec<ToolDef> {
         )
         .ro()
         .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t("scanners", "List scanners", "The scanners and multifunction printers the system can scan from (Windows Image Acquisition on Windows, SANE on Linux and BSD): id, name and paper sources (flatbed, feeder, duplex). Takes a second or more.")
+            .ro()
+            .cmd("scan.create")
+            .with(schema(json!({}), &[])),
+        t("scan", "Scan", "Scan & OCR ▸ Scan: scan pages and make them a new PDF (opened, and written to out if given; as Create PDF from images, each page the size of the paper) or, with doc, insert them so the first becomes page at (default: after the last page; undoable). scanner is an id from scanners (default: the first). source flatbed (one page), feeder or duplex (every sheet loaded, at most max_pages; 0 = all); mode color, gray or bw; dpi 50-1200 (default 300; the scanner rounds to what it supports). A feeder that jams after some pages keeps those pages. Run ocr_recognize afterwards to make the pages searchable.")
+            .cmd("scan.create")
+            .with(schema(
+                json!({
+                    "doc": { "type": "integer", "minimum": 1, "description": "Insert into this open document (an id from doc_open or doc_list) instead of creating one." },
+                    "at": { "type": "integer", "minimum": 1, "description": "With doc: the page number the first scanned page becomes (default: after the last page)." },
+                    "scanner": { "type": "string" },
+                    "source": { "type": "string", "enum": ["flatbed", "feeder", "duplex"] },
+                    "mode": { "type": "string", "enum": ["color", "gray", "bw"] },
+                    "dpi": { "type": "integer", "minimum": 50, "maximum": 1200 },
+                    "max_pages": { "type": "integer", "minimum": 0 },
+                    "name": { "type": "string", "description": "The new document's name (default Scan.pdf)." },
+                    "out": { "type": "string", "description": "Also write the new PDF here." },
+                    "open": { "type": "boolean", "description": "Open the new PDF as a document (default: true unless out is given)." },
+                }),
+                &[],
+            )),
         t("printers", "List printers", "The printers the system's print spooler knows (CUPS on macOS and Linux), with the default marked.").ro().with(schema(json!({}), &[])),
         t("printer_options", "List printer options", "A printer driver's own job options (CUPS: from its PPD), such as the paper tray, paper type or finishing: key, label, group, default and choices. Pass chosen values to doc_print as options. Empty on Windows, where the driver's preferences window holds them.")
             .ro()

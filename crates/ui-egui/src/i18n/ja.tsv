@@ -2354,3 +2354,16 @@ animation effects	Off	オフ
 	This document is trying to open a local file:	この文書はローカルファイルを開こうとしています：
 	Move tag earlier	タグを前へ移動
 	Move tag later	タグを後へ移動
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	スキャナー
+	Scan to PDF	PDF にスキャン
+	Insert from scanner	スキャナーから挿入
+	Create PDF from scanner…	スキャナーから PDF を作成…
+	Insert pages from scanner…	スキャナーからページを挿入…
+	Flatbed	原稿台
+	Document feeder	原稿送り装置
+	Looking for scanners…	スキャナーを検索中…
+	Search again	再検索
+	Recognize text after scanning	スキャン後にテキストを認識
+	Scanning… page {n}	スキャン中… ページ {n}

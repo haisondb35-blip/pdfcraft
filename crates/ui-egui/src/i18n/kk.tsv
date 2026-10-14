@@ -2352,3 +2352,16 @@ animation effects	Off	Өшірулі
 	This document is trying to open a local file:	Бұл құжат жергілікті файлды ашуға әрекеттеніп жатыр:
 	Move tag earlier	Тегті ертерек жылжыту
 	Move tag later	Тегті кейінірек жылжыту
+
+# Scan & OCR ▸ Scan: Create PDF ▸ Scanner, Organize pages ▸ Insert from scanner, the Scan dialog.
+	Scanner	Сканер
+	Scan to PDF	PDF-ке сканерлеу
+	Insert from scanner	Сканерден енгізу
+	Create PDF from scanner…	Сканерден PDF жасау…
+	Insert pages from scanner…	Сканерден беттер енгізу…
+	Flatbed	Сканер әйнегі
+	Document feeder	Құжат беру құрылғысы
+	Looking for scanners…	Сканерлер ізделуде…
+	Search again	Қайта іздеу
+	Recognize text after scanning	Сканерлеуден кейін мәтінді тану
+	Scanning… page {n}	Сканерлеу… бет {n}

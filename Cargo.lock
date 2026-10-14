@@ -4060,6 +4060,7 @@ dependencies = [
  "pdfcraft-print",
  "pdfcraft-redact",
  "pdfcraft-render",
+ "pdfcraft-scan",
  "pdfcraft-sign",
  "pdfcraft-xfa",
  "pdfcraft-xfdf",
@@ -4228,6 +4229,14 @@ dependencies = [
  "pdfcraft-fonts",
  "serde",
  "skrifa 0.44.0",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pdfcraft-scan"
+version = "0.7.1"
+dependencies = [
+ "serde_json",
  "thiserror 2.0.21",
 ]
 

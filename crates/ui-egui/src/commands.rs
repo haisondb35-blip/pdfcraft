@@ -591,6 +591,8 @@ impl PdfCraftApp {
             "create.multiple_separate" => self.create_multiple_separate_dialog(),
             "create.images" => self.create_from_images_dialog(),
             "create.clipboard" => self.create_from_clipboard(),
+            "scan.create" => self.scan_to_new_document(),
+            "page.insert_scan" => self.scan_into_document(),
             "optimize.reduce" => self.reduce_file_size(),
             "page.duplicate" => {
                 self.apply_edit(Edit::DuplicatePages { pages: targets });

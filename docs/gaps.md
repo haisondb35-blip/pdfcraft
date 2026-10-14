@@ -144,7 +144,7 @@ update the numbers.
 
 - **Missing:** every other script and accented Latin; editable-text output; deskew, rotation,
   despeckle, background and camera clean-up; MRC compression; pluggable engines; OCR in the
-  browser; scanner input.
+  browser.
 - **Evidence:** `ocr.ocr-languages` partial ("the models read only the Latin alphabet without
   accents"); 19 of 26 OCR features planned; [#744](https://github.com/storytold/pdfcraft/issues/744)
   (Dutch). Acrobat ships on-device recognition for dozens of languages.
@@ -288,7 +288,8 @@ update the numbers.
 
 ### 20. Scanners, GPU page rendering, pen pressure, Read Out Loud
 
-- **Missing:** TWAIN/WIA/ICA/SANE scanning; GPU-accelerated page rendering (pages are rasterized on
+- **Missing:** TWAIN and ICA scanning (WIA on Windows and SANE on Linux and BSD landed, `crates/scan`; not yet
+  tried on a physical scanner); GPU-accelerated page rendering (pages are rasterized on
   the CPU and uploaded); pressure-sensitive ink; platform text-to-speech.
 - **Estimate:** 25–50 h; scanners need hardware. **Doc:** [hardware-parity.md](hardware-parity.md).
 
