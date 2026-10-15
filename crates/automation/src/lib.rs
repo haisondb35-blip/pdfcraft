@@ -24,6 +24,8 @@ mod measure;
 mod printing;
 mod reading;
 mod redact;
+#[cfg(feature = "mcp")]
+pub mod remote;
 mod scanning;
 mod signing;
 mod text_cache;
@@ -114,6 +116,9 @@ pub struct Automation {
     texts: TextCache,
     /// Where `scanners` and `scan` find scanners (the system's; tests use a simulated one).
     scan_backend: Arc<dyn pdfcraft_engine::scan::Backend>,
+    /// A running app the tools run in instead (`pdfcraft-cli mcp --app`).
+    #[cfg(feature = "mcp")]
+    remote: Option<remote::RemoteApp>,
 }
 
 impl Default for Automation {
@@ -130,7 +135,26 @@ impl Automation {
             renderers: HashMap::new(),
             texts: TextCache::default(),
             scan_backend: pdfcraft_engine::scan::system(),
+            #[cfg(feature = "mcp")]
+            remote: None,
         }
+    }
+
+    /// Tools over `session` rather than a new one: the running app lends its own (`ui.tool`), so
+    /// they act on the documents its window shows. [`Automation::into_session`] gives it back.
+    pub fn over(session: Session) -> Self {
+        Self { session, ..Self::new() }
+    }
+
+    /// The session, with what the tools did to it.
+    pub fn into_session(self) -> Session {
+        self.session
+    }
+
+    /// Tools that run in the app listening on `port` (its UI control channel, with `token`).
+    #[cfg(feature = "mcp")]
+    pub fn remote(port: u16, token: String) -> Self {
+        Self { remote: Some(remote::RemoteApp::new(port, token)), ..Self::new() }
     }
 
     /// Confine every path the tools read or write to `root` (relative paths resolve inside it).
@@ -169,6 +193,10 @@ impl Automation {
 
     /// Run the tool `name` with JSON `args` (an object; `null` means no arguments).
     pub fn call(&mut self, name: &str, args: &Value) -> Result<Vec<Content>> {
+        #[cfg(feature = "mcp")]
+        if let Some(app) = self.remote.as_mut() {
+            return app.call(name, args);
+        }
         let empty = json!({});
         let args = if args.is_null() { &empty } else { args };
         if !args.is_object() {

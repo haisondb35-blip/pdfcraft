@@ -25,6 +25,7 @@ macro_rules! tl_ctx {
 mod a11y_ui;
 mod actions_ui;
 mod appearance;
+pub mod assistant;
 pub mod canvas;
 mod chrome;
 mod combine_grid;
@@ -176,6 +177,10 @@ pub enum LeftPanel {
     AllTools,
     Tool(&'static str),
 }
+
+/// Runs an automation tool (by name, with its JSON arguments) on a session; returns the encoded
+/// result or the encoded error (`pdfcraft_automation::remote`).
+pub type ToolRunner = Box<dyn FnMut(&mut pdfcraft_engine::Session, &str, &serde_json::Value) -> Result<serde_json::Value, String>>;
 
 /// Right-hand panels, opened from the rail.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -473,6 +478,14 @@ pub struct PdfCraftApp {
     pub(crate) pending_panel_reveals: Vec<docking::Panel>,
     pub session: Session,
     pub views: Vec<DocView>,
+    /// Runs an automation tool on the session (`ui.tool`): the desktop app provides it, since
+    /// the tools live in a crate beside this one.
+    pub tool_runner: Option<ToolRunner>,
+    /// The Claude pane (View › Claude): shown or not, and its conversation.
+    pub assistant_open: bool,
+    pub assistant: assistant::Assistant,
+    /// The control channel's client once one is attached (the Claude pane serves it too).
+    control_client: Option<control::ControlClient>,
     pub(crate) closed_tabs: Vec<String>,
     /// `None` shows the Home tab.
     pub active: Option<usize>,
@@ -873,6 +886,10 @@ impl PdfCraftApp {
             mode: Mode::AllTools,
             default_mode: Mode::AllTools,
             view_defaults: Default::default(),
+            tool_runner: None,
+            assistant_open: false,
+            assistant: assistant::Assistant::default(),
+            control_client: None,
             units: Default::default(),
             date_format_draft: None,
             mode_override: None,
@@ -1789,6 +1806,31 @@ impl PdfCraftApp {
         }
     }
 
+    /// After a tool ran on the session (`ui.tool`): documents it closed lose their tab, ones it
+    /// opened or created get one (the last becomes active), and every tab shows its document as
+    /// it is now.
+    pub fn sync_views_with_session(&mut self) {
+        let active = self.active.and_then(|i| self.views.get(i)).map(|v| v.id);
+        let ids: Vec<DocId> = self.session.docs().iter().map(|d| d.id).collect();
+        self.views.retain(|v| ids.contains(&v.id));
+        let mut opened = None;
+        for id in &ids {
+            if !self.views.iter().any(|v| v.id == *id)
+                && let Some(doc) = self.session.get(*id)
+            {
+                self.views.push(DocView::new(*id, &doc.info, self.view_defaults));
+                opened = Some(*id);
+            }
+        }
+        for view in &mut self.views {
+            if let Some(doc) = self.session.get(view.id) {
+                view.document_changed(&doc.info);
+            }
+        }
+        let want = opened.or(active);
+        self.active = want.and_then(|id| self.views.iter().position(|v| v.id == id)).or(if self.views.is_empty() { None } else { Some(0) });
+    }
+
     pub fn close_tab(&mut self, index: usize) {
         if index >= self.views.len() {
             return;
@@ -1846,7 +1888,26 @@ impl PdfCraftApp {
     pub fn attach_control(&mut self, ctx: &egui::Context) -> control::ControlClient {
         let (control, client) = control::attach(ctx);
         self.control = Some(control);
+        self.control_client = Some(client.clone());
         client
+    }
+
+    /// The Claude pane's channel: the control channel (attached now if it isn't yet) served on a
+    /// loopback port of its own with its own token, which the pane hands to the Claude it starts.
+    pub fn open_assistant_channel(&mut self, ctx: &egui::Context) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = match &self.control_client {
+                Some(c) => c.clone(),
+                None => self.attach_control(ctx),
+            };
+            match control::serve(client) {
+                Ok(end) => self.assistant.set_channel(end.port, end.token),
+                Err(e) => self.notify_error(format!("Claude: couldn't open a control channel ({e})")),
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = ctx;
     }
 
     /// Open a web link in the system browser (a new tab on the web). Only for PdfCraft's own
@@ -2354,6 +2415,13 @@ impl PdfCraftApp {
             }
             ("animation_effects", _) => {
                 self.animation_effects = motion::AnimationEffects::parse(value).ok_or("animation_effects must be system, on, or off")?;
+            }
+            ("claude", _) => {
+                self.assistant_open = match value {
+                    "on" | "true" | "open" => true,
+                    "off" | "false" | "closed" => false,
+                    other => return Err(format!("claude must be on or off, not {other}")),
+                };
             }
             ("panel", _) => {
                 self.right = match value {
@@ -2988,6 +3056,25 @@ impl eframe::App for PdfCraftApp {
             }
         }
         let t = theme::Tokens::get(&ctx);
+        if self.assistant_open {
+            egui::Panel::right("claude_pane")
+                .resizable(true)
+                .default_size(340.0)
+                .size_range(260.0..=560.0)
+                .frame(egui::Frame::NONE.fill(t.panel).inner_margin(12).stroke(egui::Stroke::new(1.0, t.divider)))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Claude").font(theme::semibold(15.5)));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("✕").on_hover_text("Close").clicked() {
+                                self.assistant_open = false;
+                            }
+                        });
+                    });
+                    ui.add_space(6.0);
+                    assistant::pane(self, ui);
+                });
+        }
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| {
             if self.mode == Mode::Read {
                 match self.active {

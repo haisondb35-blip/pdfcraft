@@ -584,6 +584,12 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             }
             crate::commands::registry_menu(app, ui, "View");
             ui.menu_button(tl!("Display theme"), |ui| theme_menu(app, ui));
+            // Claude: a pane where Claude works on the open PDF, as Copilot does in Office.
+            let mut claude = app.assistant_open;
+            if ui.add(widgets::checkbox(&mut claude, "Claude")).changed() {
+                app.assistant_open = claude;
+                ui.close();
+            }
             ui.menu_button(tl!("Side panels"), |ui| {
                 for (p, label) in [
                     (RightPanel::Comments, tl!("Comments")),

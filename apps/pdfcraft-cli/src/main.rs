@@ -255,7 +255,11 @@ const RUN_OPTIONS: &[OptionSpec] = &[
 const UI_OPTIONS: &[OptionSpec] = &[OptionSpec { name: "--control", takes_value: true }, OptionSpec { name: "--out", takes_value: true }];
 
 #[cfg(feature = "mcp")]
-const MCP_OPTIONS: &[OptionSpec] = &[OptionSpec { name: "--root", takes_value: true }, OptionSpec { name: "--compact", takes_value: false }];
+const MCP_OPTIONS: &[OptionSpec] = &[
+    OptionSpec { name: "--root", takes_value: true },
+    OptionSpec { name: "--compact", takes_value: false },
+    OptionSpec { name: "--app", takes_value: true },
+];
 
 fn positional(args: &[String]) -> Vec<&str> {
     let mut out = Vec::new();
@@ -730,6 +734,16 @@ fn run_child(exe: &Path, file: &Path, dpi: &str, timeout: Duration) -> serde_jso
 // ---- automation --------------------------------------------------------------------------------
 
 fn automation(args: &[String]) -> Result<pdfcraft_automation::Automation, String> {
+    // `--app PORT`: the tools run in the PdfCraft window listening there (its UI control channel,
+    // token in PDFCRAFT_CONTROL_TOKEN), on the documents it shows. The Claude pane starts this.
+    if let Some(port) = flag(args, "--app") {
+        let port: u16 = port.parse().map_err(|_| format!("--app {port}: not a port number"))?;
+        let token = std::env::var("PDFCRAFT_CONTROL_TOKEN")
+            .ok()
+            .filter(|t| !t.is_empty())
+            .ok_or("--app needs the window's token in PDFCRAFT_CONTROL_TOKEN")?;
+        return Ok(pdfcraft_automation::Automation::remote(port, token));
+    }
     let a = pdfcraft_automation::Automation::new();
     match flag(args, "--root") {
         Some(root) => a.with_root(root).map_err(|e| format!("--root {root}: {e}")),

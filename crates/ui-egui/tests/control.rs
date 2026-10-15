@@ -1576,3 +1576,39 @@ fn click_and_drag_refuse_coordinates_that_overflow_like_move() {
     assert_eq!(ok(&mut h, &c, "ui.click", json!({ "x": x, "y": y }))["clicked"], json!([x, y]));
     ok(&mut h, &c, "ui.drag", json!({ "from": [x, y], "to": [x + 10.0, y], "steps": 2 }));
 }
+
+/// `ui.tool` (the Claude pane): a tool runs on the window's own session, its edit shows in the
+/// open tab and undoes like any other, a document a tool opens gets a tab, and errors come back
+/// with their kind.
+#[test]
+fn tools_run_on_the_documents_the_window_shows() {
+    let (mut h, c) = harness_pages(3);
+    let none = call(&mut h, &c, "ui.tool", json!({"name": "doc_list"}));
+    assert!(matches!(&none, Err(e) if e.contains("runs no automation tools")), "{none:?}");
+    h.state_mut().tool_runner = Some(Box::new(|session, name, _args| match name {
+        "rotate" => {
+            let id = session.docs().first().map(|d| d.id).ok_or("failed: no document")?;
+            session.apply(id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).map_err(|e| format!("failed: {e}"))?;
+            Ok(json!({"content": [{"json": {"rotated": 1}}]}))
+        }
+        "open" => {
+            let id = session.open("two.pdf", None, Arc::new(fixture(2)), None).map_err(|e| format!("failed: {e}"))?;
+            Ok(json!({"content": [{"json": {"doc": id.0}}]}))
+        }
+        other => Err(format!("unknown_tool: {other}")),
+    }));
+    let r = ok(&mut h, &c, "ui.tool", json!({"name": "rotate", "arguments": {}}));
+    assert_eq!(r["content"][0]["json"]["rotated"], 1);
+    {
+        let app = h.state();
+        let doc = app.session.get(app.views[0].id).unwrap();
+        assert_eq!(doc.info.pages[0].rotation, 90, "the tab shows the rotated page");
+        assert!(doc.can_undo().is_some(), "the tool's edit undoes");
+    }
+    ok(&mut h, &c, "ui.tool", json!({"name": "open"}));
+    let app = h.state();
+    assert_eq!(app.views.len(), 2, "the opened document has a tab");
+    assert_eq!(app.active, Some(1), "and it is the one shown");
+    let e = call(&mut h, &c, "ui.tool", json!({"name": "nope"})).unwrap_err();
+    assert_eq!(e, "unknown_tool: nope");
+}

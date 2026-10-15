@@ -186,6 +186,8 @@ pub(crate) trait Host {
     fn set(&mut self, key: &str, value: &str) -> Reply;
     fn open(&mut self, path: &str) -> Reply;
     fn quit(&mut self, ctx: &egui::Context) -> bool;
+    /// Run an automation tool on the app's own session (`ui.tool`, for the Claude pane).
+    fn tool(&mut self, name: &str, args: &Value) -> Reply;
 }
 
 impl Control {
@@ -286,6 +288,10 @@ impl Control {
             "ui.dock" | "ui.dock.reset" => Ok(Handled::Now(host.dock(method == "ui.dock.reset", p))),
             "ui.command" if str_param("id")? == "ui.dock" => Ok(Handled::Now(host.dock(false, p.get("params").unwrap_or(p)))),
             "ui.command" => Ok(Handled::Now(host.command(str_param("id")?))),
+            "ui.tool" => {
+                let args = p.get("arguments").cloned().unwrap_or_else(|| json!({}));
+                Ok(Handled::Now(host.tool(str_param("name")?, &args)))
+            }
             "ui.set" => {
                 let value = match p.get("value") {
                     Some(Value::String(s)) => s.clone(),
@@ -634,6 +640,16 @@ fn screenshot_png(image: &egui::ColorImage, region: Option<egui::Rect>, ppp: f32
 impl Host for crate::PdfCraftApp {
     fn dock(&mut self, reset: bool, params: &Value) -> Reply {
         crate::docking::command(self, reset, params)
+    }
+
+    fn tool(&mut self, name: &str, args: &Value) -> Reply {
+        let Some(mut run) = self.tool_runner.take() else {
+            return Err("failed: this PdfCraft runs no automation tools".into());
+        };
+        let result = run(&mut self.session, name, args);
+        self.tool_runner = Some(run);
+        self.sync_views_with_session();
+        result
     }
 
     fn quit(&mut self, ctx: &egui::Context) -> bool {

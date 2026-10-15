@@ -370,6 +370,20 @@ fn app_creator<'a>(
         if let Some(server) = instance {
             app.os_events = Some(server.connect(&cc.egui_ctx));
         }
+        // `ui.tool` (the Claude pane): the automation tools run on the window's own session. Paths
+        // the tools read or write are kept to a folder of their own.
+        app.tool_runner = Some(Box::new(|session, name, args| {
+            let lent = std::mem::replace(session, pdfcraft_engine::Session::new());
+            let tools = pdfcraft_automation::Automation::over(lent);
+            let dir = std::env::temp_dir().join(format!("pdfcraft-claude-{}", std::process::id()));
+            let mut tools = match std::fs::create_dir_all(&dir).and_then(|()| tools.with_root(&dir)) {
+                Ok(t) => t,
+                Err(e) => return Err(format!("failed: no folder for the tools ({e})")),
+            };
+            let result = tools.call(name, args);
+            *session = tools.into_session();
+            result.map(|c| pdfcraft_automation::remote::encode(&c)).map_err(|e| pdfcraft_automation::remote::error_text(&e))
+        }));
         if let Some(file) = &control_file {
             let client = app.attach_control(&cc.egui_ctx);
             open_control_channel(file, pdfcraft_ui_egui::control::serve(client))?;
