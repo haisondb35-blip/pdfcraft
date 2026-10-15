@@ -4788,6 +4788,20 @@ trailer << /Root 1 0 R >>
         page
     }
 
+    /// A scan or photo zoomed in is smoothed even without `/Interpolate`, as Acrobat's and Foxit's
+    /// "Smooth images" do: nearest-neighbour drew its letters as staircases. A small image (a QR
+    /// code, an icon) enlarged the same way keeps its hard edges.
+    #[test]
+    fn large_pictures_are_smoothed_when_zoomed_in_and_small_ones_are_not() {
+        // Black and white columns, 4 source pixels wide, drawn at 3 device pixels per source pixel.
+        let stripes = |side: u32| -> Vec<u8> { (0..side * side).map(|i| if ((i % side) / 4).is_multiple_of(2) { 0 } else { 255 }).collect() };
+        let mid_tones = |p: &RenderedPage| p.rgba.as_chunks::<4>().0.iter().filter(|px| (32..=223).contains(&px[0])).count();
+        let big = draw_minified_image("DeviceGray", (256, 256), None, &stripes(256), None, (768, 768));
+        assert!(mid_tones(&big) > 768 * 10, "a zoomed-in scan should be smoothed: {} mid-tone pixels", mid_tones(&big));
+        let small = draw_minified_image("DeviceGray", (32, 32), None, &stripes(32), None, (96, 96));
+        assert_eq!(mid_tones(&small), 0, "a small image keeps nearest-neighbour edges");
+    }
+
     /// Issue #624: an image drawn below its source resolution was pre-resampled with Catmull-Rom
     /// even when `/Interpolate` was false (or absent, whose PDF default is false). That blends
     /// neighboring samples before the renderer's later non-interpolating image sampler sees them,

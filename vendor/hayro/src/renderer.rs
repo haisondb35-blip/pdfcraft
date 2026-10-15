@@ -193,6 +193,16 @@ fn image_buffer(len: usize) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// PdfCraft patch: the shortest side, in source pixels, of an image smoothed whatever its
+/// `/Interpolate` (see `draw_image`). A scanned or photographed page is thousands of pixels a
+/// side; a QR code, an icon or a pixel-art picture is far fewer.
+const SMOOTH_MIN_SIDE: u32 = 256;
+
+/// Is an image of `width` × `height` source pixels a picture to smooth by default?
+fn smooths_by_default(width: u32, height: u32) -> bool {
+    width.min(height) >= SMOOTH_MIN_SIDE
+}
+
 /// PdfCraft patch (#624): the source index that PicScale's nearest-neighbour plan copies for
 /// destination `index` of `dst` samples taken from `src`. It is the same fixed-point centre
 /// sampling as `ResampleNearestPlan`, so these are the samples a nearest resize would copy.
@@ -738,6 +748,20 @@ impl Renderer {
     }
 
     fn draw_image(&mut self, image_data: ImageData, alpha_data: Option<LumaData>) {
+        let (mut image_data, mut alpha_data) = (image_data, alpha_data);
+        // PdfCraft patch: a large picture (a scan, a photo) is smoothed whatever its
+        // `/Interpolate`, as Acrobat's and Foxit's "Smooth images" do; nearest-neighbour drew a
+        // zoomed-in scan's letters as staircases. Small images (QR codes, icons, pixel art)
+        // and Type 3 glyphs keep `/Interpolate` and so stay crisp.
+        if !self.in_type3_glyph && smooths_by_default(image_data.width(), image_data.height()) {
+            match &mut image_data {
+                ImageData::Luma(l) => l.interpolate = true,
+                ImageData::Rgb(r) => r.interpolate = true,
+            }
+            if let Some(a) = &mut alpha_data {
+                a.interpolate = true;
+            }
+        }
         let cur_transform = *self.ctx.transform();
         let (x_scale, y_scale) = {
             let (x, y) = x_y_advances(&cur_transform);
