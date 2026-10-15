@@ -104,24 +104,39 @@ try {
     $out = $env:PDFCRAFT_SCAN_OUT
     $max = [int]$env:PDFCRAFT_SCAN_MAX_PAGES
     $n = 0
+    $last = $null
     while ($true) {
         $img = $null
-        # Before the first page a scanner can be busy for a few seconds (waking, finishing another
-        # job): wait for it, up to about half a minute. After a page, busy ends the batch with the
-        # pages so far: asking again and again kept a network (WSD) scanner's job from ending.
+        # Busy: before the first page the scanner may be waking or finishing another job; between
+        # feeder pages a network (WSD) scanner is busy while it feeds and scans the next sheet of
+        # the same job. Wait for it either way, but only so long (about 30 s before the first page,
+        # 20 s between pages): once the wait is up the batch ends with the pages so far, so a
+        # scanner that stays busy can't keep the job running. (Ending at the first busy left the
+        # rest of the sheets scanned but never read, and the next Scan got a stale page.)
+        $waits = 10
+        $pause = if ($n -eq 0) { 3 } else { 2 }
         for ($try = 0; $null -eq $img; $try++) {
             try {
                 $img = $item.Transfer($transfer)
             } catch {
                 $hex = '{0:X8}' -f $_.Exception.HResult
-                if ($hex -eq '80210006' -and $n -eq 0 -and $try -lt 10) { Start-Sleep -Seconds 3; continue }
-                # The feeder ran out of paper, or is still busy, after at least one page: the batch is done.
+                if ($hex -eq '80210006' -and $try -lt $waits) { Start-Sleep -Seconds $pause; continue }
+                # The feeder ran out of paper, or stayed busy, after at least one page: the batch is done.
                 if ($feed -and $n -gt 0 -and ($hex -eq '80210003' -or $hex -eq '80210006')) { break }
                 Fail $_
                 exit 0
             }
         }
         if ($null -eq $img) { break }
+        # A page identical to the one before is the driver handing the same image back, not a new
+        # sheet: drop it and end the batch rather than add a copy.
+        $bytes = $null
+        try { $bytes = [byte[]]$img.FileData.BinaryData } catch { }
+        if ($null -ne $bytes) {
+            $sum = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes))
+            if ($sum -eq $last) { break }
+            $last = $sum
+        }
         $n++
         $file = Join-Path $out ('page-{0:D4}.{1}' -f $n, $ext)
         if ("$($img.FormatID)" -eq $format) {
