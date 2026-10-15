@@ -376,13 +376,73 @@ fn begin(kind: MarkKind, subtype: &str, matrix: [f64; 6]) -> String {
 
 const END: &str = "EMC\nQ\n";
 
-/// Refuses page text the standard-14 fonts (WinAnsiEncoding) can't draw: written anyway, each
-/// such character would become a `?` on the page (#125). `lines` must split the text the way the
-/// caller draws it, so a `\r` that would be drawn is refused too.
-pub(crate) fn drawable<'a>(lines: impl IntoIterator<Item = &'a str>) -> Result<(), EditError> {
-    match lines.into_iter().find_map(pdfcraft_fonts::first_non_win_ansi) {
-        Some(c) => Err(undrawable(c)),
-        None => Ok(()),
+/// Does page text need Inter (Vietnamese, Central European, Greek, Cyrillic: what WinAnsiEncoding
+/// can't encode)? Refuses text neither font draws: written anyway, each such character would
+/// become a `?` on the page (#125). `lines` must split the text the way the caller draws it, so a
+/// `\r` that would be drawn is refused too.
+pub(crate) fn needs_inter<'a>(lines: impl IntoIterator<Item = &'a str>) -> Result<bool, EditError> {
+    let mut inter = false;
+    for line in lines {
+        if let Some(c) = pdfcraft_fonts::first_non_win_ansi(line) {
+            if !pdfcraft_fonts::unicode::covers(line) {
+                return Err(undrawable(c));
+            }
+            inter = true;
+        }
+    }
+    Ok(inter)
+}
+
+/// The font a header, footer or watermark draws with: Helvetica, or Inter embedded in the page
+/// for text Helvetica can't encode.
+enum Pen {
+    Helvetica,
+    Inter(Box<pdfcraft_fonts::unicode::Embedded>),
+}
+
+impl Pen {
+    /// The pen for page `i`; with `inter`, Inter is embedded and added to the page's fonts (after
+    /// [`add_resources`], so it takes a name the page doesn't use).
+    fn for_page(doc: &mut Document, i: usize, inter: bool) -> Result<Pen, EditError> {
+        if !inter {
+            return Ok(Pen::Helvetica);
+        }
+        let page = page_list(doc)[i].clone();
+        let mut res = page.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
+        let mut fonts = res.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned()).unwrap_or_default();
+        let e = pdfcraft_fonts::unicode::Embedded::new(doc, &fonts, "PCUni", false).map_err(EditError::Invalid)?;
+        fonts.set(e.resource.clone().into_bytes(), e.font.clone());
+        res.set(b"Font".to_vec(), Object::Dict(fonts));
+        doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res)))?;
+        Ok(Pen::Inter(Box::new(e)))
+    }
+
+    fn resource(&self) -> &str {
+        match self {
+            Pen::Helvetica => "PCHelv",
+            Pen::Inter(e) => &e.resource,
+        }
+    }
+
+    fn width(&self, text: &str, size: f64) -> f64 {
+        match self {
+            Pen::Helvetica => helvetica_width(text, size),
+            Pen::Inter(e) => e.width(text, size),
+        }
+    }
+
+    /// Show `text` with its baseline starting at (`x`, `y`).
+    fn text_op(&self, x: f64, y: f64, text: &str) -> Result<Vec<u8>, EditError> {
+        match self {
+            Pen::Helvetica => Ok(text_op(x, y, text)),
+            Pen::Inter(e) => {
+                let shown = e.show(text).ok_or_else(|| undrawable(pdfcraft_fonts::first_non_win_ansi(text).unwrap_or('?')))?;
+                let mut v = format!("1 0 0 1 {} {} Tm ", n(x), n(y)).into_bytes();
+                v.extend(shown);
+                v.extend_from_slice(b" Tj\n");
+                Ok(v)
+            }
+        }
     }
 }
 
@@ -413,7 +473,7 @@ pub fn add_header_footer(doc: &mut Document, pages: &[usize], hf: &HeaderFooter,
     }
     // Tokens only add ASCII (Bates prefixes and suffixes are part of the template), so checking
     // the templates, split as `expand`'s output is, covers every page.
-    hf.text.iter().try_for_each(|t| drawable(t.lines()))?;
+    let inter = needs_inter(hf.text.iter().flat_map(|t| t.lines()))?;
     if !(hf.font_size.is_finite() && hf.font_size > 0.0 && hf.font_size <= 200.0 && hf.margins.iter().all(|m| m.is_finite() && *m >= 0.0)) {
         return Err(EditError::Invalid("invalid font size or margins".into()));
     }
@@ -440,12 +500,14 @@ pub fn add_header_footer(doc: &mut Document, pages: &[usize], hf: &HeaderFooter,
     for (k, &i) in pages.iter().enumerate() {
         let page = &all[i];
         let (w, h) = page.display_size(doc);
+        add_resources(doc, page, None, None)?;
+        let pen = Pen::for_page(doc, i, inter)?;
         let number =
             u32::try_from(u64::from(hf.start_number) + k as u64).map_err(|_| EditError::Invalid("the header page numbers are too large".into()))?;
         let bates = bates0 + k as u64;
         let size = hf.font_size;
         let [top, bottom, left, right] = hf.margins;
-        let mut body: Vec<u8> = format!("BT\n/PCHelv {} Tf\n{}\n", n(size), rgb(hf.color)).into_bytes();
+        let mut body: Vec<u8> = format!("BT\n/{} {} Tf\n{}\n", pen.resource(), n(size), rgb(hf.color)).into_bytes();
         let mut underlines = String::new();
         for (slot, template) in hf.text.iter().enumerate() {
             if template.trim().is_empty() {
@@ -455,7 +517,7 @@ pub fn add_header_footer(doc: &mut Document, pages: &[usize], hf: &HeaderFooter,
             let header = slot < 3;
             let line_h = size * 1.2;
             for (li, line) in lines.iter().enumerate() {
-                let tw = helvetica_width(line, size);
+                let tw = pen.width(line, size);
                 let x = match slot % 3 {
                     0 => left,
                     1 => (w - tw) / 2.0,
@@ -463,7 +525,7 @@ pub fn add_header_footer(doc: &mut Document, pages: &[usize], hf: &HeaderFooter,
                 };
                 // Headers hang below the top margin; footers sit on the bottom margin.
                 let y = if header { h - top - size * 0.8 - li as f64 * line_h } else { bottom + (lines.len() - 1 - li) as f64 * line_h };
-                body.extend(text_op(x, y, line));
+                body.extend(pen.text_op(x, y, line)?);
                 if hf.underline {
                     underlines.push_str(&format!("{} {} {} {} re f\n", n(x), n(y - size * 0.15), n(tw), n((size * 0.06).max(0.4))));
                 }
@@ -476,7 +538,6 @@ pub fn add_header_footer(doc: &mut Document, pages: &[usize], hf: &HeaderFooter,
         let mut content = begin(MarkKind::HeaderFooter, "Header", page.view_matrix(doc)).into_bytes();
         content.extend(body);
         content.extend_from_slice(END.as_bytes());
-        add_resources(doc, page, None, None)?;
         let page = &page_list(doc)[i];
         place(doc, page, MarkKind::HeaderFooter, content, false)?;
     }
@@ -491,9 +552,7 @@ pub fn add_watermark(doc: &mut Document, pages: &[usize], wm: &Watermark, replac
     if text.is_empty() && wm.source.is_none() {
         return Err(EditError::Invalid("type the watermark text first".into()));
     }
-    if wm.source.is_none() {
-        drawable(text.lines())?;
-    }
+    let inter = wm.source.is_none() && needs_inter(text.lines())?;
     if !(wm.opacity.is_finite()
         && wm.rotation.is_finite()
         && wm.font_size.is_finite()
@@ -521,14 +580,16 @@ pub fn add_watermark(doc: &mut Document, pages: &[usize], wm: &Watermark, replac
             place(doc, page, MarkKind::Watermark, content.into_bytes(), wm.behind)?;
             continue;
         }
-        let widest = lines.iter().map(|l| helvetica_width(l, 1.0)).fold(0.0, f64::max).max(0.01);
+        add_resources(doc, &page, Some(opacity), None)?;
+        let pen = Pen::for_page(doc, i, inter)?;
+        let widest = lines.iter().map(|l| pen.width(l, 1.0)).fold(0.0, f64::max).max(0.01);
         let size = if wm.font_size > 0.0 { wm.font_size } else { ((w * w + h * h).sqrt() * 0.5 / widest).clamp(6.0, 300.0) };
         let (s, c) = wm.rotation.to_radians().sin_cos();
         let (cx, cy) = (w / 2.0 + wm.offset[0], h / 2.0 + wm.offset[1]);
         let mut content = begin(MarkKind::Watermark, "Watermark", page.view_matrix(doc)).into_bytes();
         content.extend(
             format!(
-                "/PCGS{} gs\n{} {} {} {} {} {} cm\nBT\n/PCHelv {} Tf\n{}\n",
+                "/PCGS{} gs\n{} {} {} {} {} {} cm\nBT\n/{} {} Tf\n{}\n",
                 (opacity * 100.0).round() as i64,
                 n(c),
                 n(s),
@@ -536,6 +597,7 @@ pub fn add_watermark(doc: &mut Document, pages: &[usize], wm: &Watermark, replac
                 n(c),
                 n(cx),
                 n(cy),
+                pen.resource(),
                 n(size),
                 rgb(wm.color)
             )
@@ -544,12 +606,11 @@ pub fn add_watermark(doc: &mut Document, pages: &[usize], wm: &Watermark, replac
         let line_h = size * 1.15;
         let total = line_h * (lines.len() as f64 - 1.0);
         for (li, line) in lines.iter().enumerate() {
-            let tw = helvetica_width(line, size);
-            content.extend(text_op(-tw / 2.0, total / 2.0 - li as f64 * line_h - size * 0.35, line));
+            let tw = pen.width(line, size);
+            content.extend(pen.text_op(-tw / 2.0, total / 2.0 - li as f64 * line_h - size * 0.35, line)?);
         }
         content.extend_from_slice(b"ET\n");
         content.extend_from_slice(END.as_bytes());
-        add_resources(doc, &page, Some(opacity), None)?;
         let page = &page_list(doc)[i];
         place(doc, page, MarkKind::Watermark, content, wm.behind)?;
     }

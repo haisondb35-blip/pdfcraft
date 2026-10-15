@@ -2172,7 +2172,7 @@ fn page_text_the_standard_fonts_cant_draw_is_refused() {
     let err = add_content(&mut doc, 0, &Content::Text(text)).unwrap_err().to_string();
     assert!(err.contains("\"日\" (U+65E5)"), "{err}");
     let hf = HeaderFooter {
-        text: ["Ελληνικά".into(), String::new(), String::new(), String::new(), String::new(), String::new()],
+        text: ["Ελληνικά 中文".into(), String::new(), String::new(), String::new(), String::new(), String::new()],
         ..HeaderFooter::default()
     };
     assert!(add_header_footer(&mut doc, &[0, 1], &hf, true, &cx()).unwrap_err().to_string().contains("U+0395"));
@@ -3478,4 +3478,38 @@ fn added_vietnamese_text_is_drawn_in_inter_and_stays_searchable() {
     let res = p.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap();
     let fonts = res.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned()).unwrap_or_default();
     assert!(!fonts.iter().any(|(k, _)| k.starts_with(b"PCUni")));
+}
+
+/// Headers, footers, Bates numbers and watermarks in Vietnamese are drawn in Inter, not refused,
+/// and read back as typed.
+#[test]
+fn vietnamese_headers_footers_and_watermarks_are_drawn_in_inter() {
+    let mut doc = fixture();
+    let hf = HeaderFooter {
+        text: [
+            String::new(),
+            "Thông báo điện mặt trời".into(),
+            String::new(),
+            String::new(),
+            String::new(),
+            "Trang <<1>> · <<Bates Number#6#1#HS-#>>".into(),
+        ],
+        ..HeaderFooter::default()
+    };
+    add_header_footer(&mut doc, &[0, 1], &hf, true, &cx()).unwrap();
+    let wm = Watermark { text: "BẢN NHÁP\nĐỗ Anh".into(), opacity: 0.3, ..Watermark::default() };
+    add_watermark(&mut doc, &[0], &wm, true).unwrap();
+    let doc = reopen(&doc);
+    let page0 = streams(&doc, 0).join("\n");
+    assert!(page0.contains("/PCUni0 ") && !page0.contains('?'), "{page0}");
+    let read: String = text_lines(&doc, 0).unwrap().iter().map(|l| l.text.clone()).collect::<Vec<_>>().join("\n");
+    for want in ["Thông báo điện mặt trời", "Trang 1", "HS-000001", "BẢN NHÁP", "Đỗ Anh"] {
+        assert!(read.contains(want), "{want:?} in {read}");
+    }
+    let read: String = text_lines(&doc, 1).unwrap().iter().map(|l| l.text.clone()).collect::<Vec<_>>().join("\n");
+    assert!(read.contains("Thông báo điện mặt trời") && read.contains("HS-000002"), "{read}");
+    // Western European text keeps Helvetica.
+    let mut doc = fixture();
+    add_watermark(&mut doc, &[0], &Watermark { text: "Café".into(), ..Watermark::default() }, true).unwrap();
+    assert!(!streams(&doc, 0).join("\n").contains("/PCUni"));
 }
