@@ -44,7 +44,7 @@ function Prop($props, $id) {
 
 function SetProp($props, $id, $value) {
     $p = Prop $props $id
-    if ($p -ne $null) { try { $p.Value = $value } catch { } }
+    if ($null -ne $p) { try { $p.Value = $value } catch { } }
 }
 
 try {
@@ -64,8 +64,8 @@ try {
                 # lists none before it is connected); an offline one keeps the device info's, if any.
                 $caps = $null
                 try { $caps = Prop $info.Connect().Properties $DOC_HANDLING_CAPS } catch { }
-                if ($caps -eq $null) { $caps = Prop $info.Properties $DOC_HANDLING_CAPS }
-                if ($caps -ne $null) {
+                if ($null -eq $caps) { $caps = Prop $info.Properties $DOC_HANDLING_CAPS }
+                if ($null -ne $caps) {
                     $sources = @()
                     if ($caps.Value -band $FLATBED) { $sources += 'flatbed' }
                     if ($caps.Value -band $FEEDER) { $sources += 'feeder' }
@@ -80,13 +80,15 @@ try {
 
     $info = $null
     foreach ($i in $dm.DeviceInfos) { if ($i.DeviceID -eq $env:PDFCRAFT_SCAN_DEVICE) { $info = $i } }
-    if ($info -eq $null) { Emit @{ error = 'offline'; code = '80210005'; message = 'the scanner is not connected' }; exit 0 }
+    if ($null -eq $info) { Emit @{ error = 'offline'; code = '80210005'; message = 'the scanner is not connected' }; exit 0 }
     $dev = $info.Connect()
     $source = $env:PDFCRAFT_SCAN_SOURCE
     $feed = $source -eq 'feeder' -or $source -eq 'duplex'
     $select = switch ($source) { 'feeder' { $FEEDER } 'duplex' { $FEEDER -bor $DUPLEX } default { $FLATBED } }
     SetProp $dev.Properties $DOC_HANDLING_SELECT $select
-    if ($feed) { SetProp $dev.Properties $PAGES 0 }  # 0: every sheet in the feeder
+    # One page a transfer: the loop below asks again until the feeder is empty. (Pages = 0, "every
+    # sheet", is refused as an invalid parameter by network scanners.)
+    if ($feed) { SetProp $dev.Properties $PAGES 1 }
     $item = $dev.Items.Item(1)
     $dpi = [int]$env:PDFCRAFT_SCAN_DPI
     $intent = switch ($env:PDFCRAFT_SCAN_MODE) { 'gray' { 2 } 'bw' { 4 } default { 1 } }
@@ -103,15 +105,23 @@ try {
     $max = [int]$env:PDFCRAFT_SCAN_MAX_PAGES
     $n = 0
     while ($true) {
-        try {
-            $img = $item.Transfer($transfer)
-        } catch {
-            $hex = '{0:X8}' -f $_.Exception.HResult
-            # The feeder ran out of paper after at least one page: the batch is done.
-            if ($feed -and $n -gt 0 -and $hex -eq '80210003') { break }
-            Fail $_
-            exit 0
+        $img = $null
+        # Before the first page a scanner can be busy for a few seconds (waking, finishing another
+        # job): wait for it, up to about half a minute. After a page, busy ends the batch with the
+        # pages so far: asking again and again kept a network (WSD) scanner's job from ending.
+        for ($try = 0; $null -eq $img; $try++) {
+            try {
+                $img = $item.Transfer($transfer)
+            } catch {
+                $hex = '{0:X8}' -f $_.Exception.HResult
+                if ($hex -eq '80210006' -and $n -eq 0 -and $try -lt 10) { Start-Sleep -Seconds 3; continue }
+                # The feeder ran out of paper, or is still busy, after at least one page: the batch is done.
+                if ($feed -and $n -gt 0 -and ($hex -eq '80210003' -or $hex -eq '80210006')) { break }
+                Fail $_
+                exit 0
+            }
         }
+        if ($null -eq $img) { break }
         $n++
         $file = Join-Path $out ('page-{0:D4}.{1}' -f $n, $ext)
         if ("$($img.FormatID)" -eq $format) {
