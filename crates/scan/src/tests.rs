@@ -61,8 +61,8 @@ fn the_wia_script_takes_its_settings_from_the_environment() {
     ] {
         assert!(WIA_SCRIPT.contains(&format!("$env:{var}")), "{var}");
     }
-    // It fits on a command line once encoded (Windows allows 32,767 characters).
-    let encoded = base64(&WIA_SCRIPT.encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>());
+    // It fits on a command line once compacted and encoded (Windows allows 32,767 characters).
+    let encoded = base64(&compact_script(WIA_SCRIPT).encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>());
     assert!(encoded.len() < 30_000, "{}", encoded.len());
 }
 

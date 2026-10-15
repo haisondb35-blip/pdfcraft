@@ -47,6 +47,119 @@ function SetProp($props, $id, $value) {
     if ($null -ne $p) { try { $p.Value = $value } catch { } }
 }
 
+# Save a scanned page as $dst: JPEG (quality 85) for colour and grey, PNG for black and white,
+# turned grey when the scanner could only scan in colour. $src is removed unless it is $dst.
+function SavePage($src, $dst, $mode) {
+    Add-Type -AssemblyName System.Drawing
+    $img = [System.Drawing.Image]::FromFile($src)
+    try {
+        $page = $img
+        if ($mode -eq 'gray' -or $mode -eq 'bw') {
+            $page = New-Object System.Drawing.Bitmap $img.Width, $img.Height
+            $page.SetResolution($img.HorizontalResolution, $img.VerticalResolution)
+            $g = [System.Drawing.Graphics]::FromImage($page)
+            $m = New-Object System.Drawing.Imaging.ColorMatrix
+            foreach ($r in 0, 1, 2) { $m[0, $r] = 0.299; $m[1, $r] = 0.587; $m[2, $r] = 0.114 }
+            $a = New-Object System.Drawing.Imaging.ImageAttributes
+            $a.SetColorMatrix($m)
+            $g.DrawImage($img, (New-Object System.Drawing.Rectangle 0, 0, $img.Width, $img.Height), 0, 0, $img.Width, $img.Height, [System.Drawing.GraphicsUnit]::Pixel, $a)
+            $g.Dispose()
+        }
+        if ($dst.EndsWith('.png')) {
+            $page.Save($dst, [System.Drawing.Imaging.ImageFormat]::Png)
+        } else {
+            $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
+            $params = New-Object System.Drawing.Imaging.EncoderParameters 1
+            $params.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]85)
+            $page.Save($dst, $codec, $params)
+        }
+        if ($page -ne $img) { $page.Dispose() }
+    } finally {
+        $img.Dispose()
+    }
+    if ($src -ne $dst) { Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue }
+}
+
+# Scan the whole feeder as one job through Windows.Devices.Scanners, the API of Windows' own Scan
+# app. A network (WSD) scanner such as Brother's feeds the next sheet while it scans one, and
+# says when the feeder is empty, only within one job: asking for one page a transfer (the WIA
+# Automation Layer's way) ejected the sheet already fed, and the last transfer waited for paper.
+# Returns $false, having done nothing, when the API can't reach the scanner (the caller then
+# falls back); $true once it has scanned or said why it couldn't.
+function FeederScan($info) {
+    try {
+        Add-Type -AssemblyName System.Runtime.WindowsRuntime
+        $null = [Windows.Devices.Scanners.ImageScanner, Windows.Devices.Scanners, ContentType = WindowsRuntime]
+        $null = [Windows.Devices.Enumeration.DeviceInformation, Windows.Devices.Enumeration, ContentType = WindowsRuntime]
+        $null = [Windows.Storage.StorageFolder, Windows.Storage, ContentType = WindowsRuntime]
+    } catch { return $false }
+    $methods = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 }
+    $one = $methods | Where-Object { $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' } | Select-Object -First 1
+    $two = $methods | Where-Object { $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperationWithProgress`2' } | Select-Object -First 1
+    if ($null -eq $one -or $null -eq $two) { return $false }
+    $await = {
+        param($task)
+        try { $task.Wait(-1) | Out-Null } catch { }
+        if ($task.Exception) { throw $task.Exception.InnerException }
+        $task.Result
+    }
+    $name = ''
+    try { $name = "$($info.Properties.Item('Name').Value)" } catch { }
+    try {
+        $all = & $await ($one.MakeGenericMethod([Windows.Devices.Enumeration.DeviceInformationCollection]).Invoke($null, @([Windows.Devices.Enumeration.DeviceInformation]::FindAllAsync([Windows.Devices.Scanners.ImageScanner]::GetDeviceSelector()))))
+    } catch { return $false }
+    $match = @($all | Where-Object { $name -and $_.Name.StartsWith($name) })
+    if ($match.Count -ne 1) { $match = if ($all.Count -eq 1) { @($all[0]) } else { @() } }
+    if ($match.Count -ne 1) { return $false }
+    # Opening a scanner that is still busy (waking, finishing a job) is retried for about 30 s.
+    $scanner = $null
+    for ($try = 0; $null -eq $scanner; $try++) {
+        try {
+            $scanner = & $await ($one.MakeGenericMethod([Windows.Devices.Scanners.ImageScanner]).Invoke($null, @([Windows.Devices.Scanners.ImageScanner]::FromIdAsync($match[0].Id))))
+        } catch {
+            $hex = '{0:X8}' -f $_.Exception.HResult
+            if ($hex -eq '80210006' -and $try -lt 10) { Start-Sleep -Seconds 3; continue }
+            if ($hex -eq '80210006') { Fail @{ Exception = $_.Exception }; return $true }
+            return $false
+        }
+    }
+    if ($null -eq $scanner -or -not $scanner.IsScanSourceSupported('Feeder')) { return $false }
+    $mode = "$env:PDFCRAFT_SCAN_MODE"
+    $dpi = [int]$env:PDFCRAFT_SCAN_DPI
+    $max = [int]$env:PDFCRAFT_SCAN_MAX_PAGES
+    $out = $env:PDFCRAFT_SCAN_OUT
+    $cfg = $scanner.FeederConfiguration
+    # Every sheet (0) unless a limit was asked for.
+    $cfg.MaxNumberOfPages = [uint32][math]::Max(0, $max)
+    $cfg.Duplex = ($env:PDFCRAFT_SCAN_SOURCE -eq 'duplex') -and $cfg.CanScanDuplex
+    $want = switch ($mode) { 'gray' { 'Grayscale' } 'bw' { 'Monochrome' } default { 'Color' } }
+    $cfg.ColorMode = if ($cfg.IsColorModeSupported($want)) { $want } elseif ($cfg.IsColorModeSupported('Grayscale') -and $want -ne 'Color') { 'Grayscale' } else { 'Color' }
+    $d = [math]::Min([math]::Max($dpi, [int]$cfg.MinResolution.DpiX), [int]$cfg.MaxResolution.DpiX)
+    $res = New-Object Windows.Devices.Scanners.ImageScannerResolution
+    $res.DpiX = $d; $res.DpiY = $d
+    $cfg.DesiredResolution = $res
+    $cfg.Format = if ($mode -ne 'bw' -and $cfg.IsFormatSupported('Jpeg')) { 'Jpeg' } elseif ($cfg.IsFormatSupported('Png')) { 'Png' } else { 'DeviceIndependentBitmap' }
+    try {
+        $folder = & $await ($one.MakeGenericMethod([Windows.Storage.StorageFolder]).Invoke($null, @([Windows.Storage.StorageFolder]::GetFolderFromPathAsync($out))))
+        $result = & $await ($two.MakeGenericMethod([Windows.Devices.Scanners.ImageScannerScanResult], [uint32]).Invoke($null, @($scanner.ScanFilesToFolderAsync('Feeder', $folder))))
+    } catch {
+        Fail @{ Exception = $_.Exception }
+        return $true
+    }
+    $ext = if ($mode -eq 'bw') { 'png' } else { 'jpg' }
+    $n = 0
+    foreach ($f in $result.ScannedFiles) {
+        $n++
+        $file = Join-Path $out ('page-{0:D4}.{1}' -f $n, $ext)
+        $grey = $cfg.ColorMode -eq 'Color' -and $mode -ne 'color' -and $mode -ne ''
+        if ($f.Path.EndsWith(".$ext") -and -not $grey) { Move-Item -LiteralPath $f.Path -Destination $file -Force } else { SavePage $f.Path $file $mode }
+        Emit @{ page = $n; file = $file; dpi = $d }
+    }
+    # An empty feeder at the start is "no paper", as the WIA path says it.
+    if ($n -eq 0) { Emit @{ error = 'empty'; code = '80210003'; message = 'the feeder is empty' } }
+    return $true
+}
+
 try {
     try { $dm = New-Object -ComObject WIA.DeviceManager } catch { Emit @{ error = 'nowia'; code = '0'; message = "$($_.Exception.Message)".Trim() }; exit 0 }
     $op = $env:PDFCRAFT_SCAN_OP
@@ -81,6 +194,9 @@ try {
     $info = $null
     foreach ($i in $dm.DeviceInfos) { if ($i.DeviceID -eq $env:PDFCRAFT_SCAN_DEVICE) { $info = $i } }
     if ($null -eq $info) { Emit @{ error = 'offline'; code = '80210005'; message = 'the scanner is not connected' }; exit 0 }
+    # The feeder goes through Windows.Devices.Scanners first (see FeederScan); the loop below is
+    # the fallback when that API can't reach the scanner.
+    if (($env:PDFCRAFT_SCAN_SOURCE -eq 'feeder' -or $env:PDFCRAFT_SCAN_SOURCE -eq 'duplex') -and (FeederScan $info)) { exit 0 }
     $dev = $info.Connect()
     $source = $env:PDFCRAFT_SCAN_SOURCE
     $feed = $source -eq 'feeder' -or $source -eq 'duplex'

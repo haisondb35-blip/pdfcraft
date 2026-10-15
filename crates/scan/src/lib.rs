@@ -435,6 +435,13 @@ impl Drop for WorkDir {
 /// variables (never spliced into the script); results come out as JSON lines ([`parse_wia_line`]).
 pub const WIA_SCRIPT: &str = include_str!("wia.ps1");
 
+/// A PowerShell script without its comment lines, blank lines and indentation: the command line
+/// that carries it (`-EncodedCommand`, UTF-16 in Base64) is limited to 32,767 characters. The
+/// script has no here-strings or line continuations, so every remaining line means the same.
+pub fn compact_script(script: &str) -> String {
+    script.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect::<Vec<_>>().join("\n")
+}
+
 /// One line of [`WIA_SCRIPT`]'s output.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WiaLine {
@@ -487,7 +494,7 @@ fn powershell(env: &[(&str, &str)]) -> Command {
         .unwrap_or_else(|| PathBuf::from("powershell.exe"));
     let mut cmd = Command::new(exe);
     // -EncodedCommand takes the script as Base64 UTF-16LE: no temporary script file, no quoting.
-    let utf16: Vec<u8> = WIA_SCRIPT.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let utf16: Vec<u8> = compact_script(WIA_SCRIPT).encode_utf16().flat_map(u16::to_le_bytes).collect();
     cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"]).arg(base64(&utf16));
     for (k, v) in env {
         cmd.env(k, v);
