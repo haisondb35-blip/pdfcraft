@@ -410,6 +410,9 @@ impl PdfCraftApp {
                 self.reveal_tools();
             }
             "edit.image" => self.add_image_dialog(),
+            "ai.summary" | "ai.ask" | "ai.translate" => {
+                crate::assistant::tool(self, id);
+            }
             "edit.link" => {
                 self.quick_tool = crate::QuickTool::Link;
                 self.notify_tr("Drag a rectangle to create a link; double-click a link to edit it");

@@ -247,6 +247,10 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("comment.caret", "Insert text", None, None, Annotate, "text-cursor-input"),
     c("comment.replace", "Replace text", None, None, Annotate, "replace"),
     c("comment.attach", "Attach a file", None, None, Annotate, "paperclip"),
+    // AI assistant: Claude Code on this computer, in the Claude pane.
+    c("ai.summary", "Summarize", None, None, Document, "sparkles"),
+    c("ai.ask", "Ask about this document", None, None, Document, "message-circle-reply"),
+    c("ai.translate", "Translate", None, None, Document, "languages"),
     c("comment.eraser", "Erase drawings", None, None, Annotate, "eraser"),
     c("form.fields", "Form fields panel", VIEW, None, Document, "list"),
     c("form.clear", "Clear form", EDIT, None, FillForms, "eraser"),

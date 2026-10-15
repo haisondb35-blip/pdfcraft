@@ -109,6 +109,10 @@ pub struct Assistant {
     /// `pdfcraft-cli` (default: beside the running executable).
     pub cli: Option<PathBuf>,
     work_dir: Option<PathBuf>,
+    /// A question to send when the pane is next drawn (AI assistant ▸ Summarize).
+    pub queued: Option<String>,
+    /// Put the cursor in the input box when the pane is next drawn.
+    pub focus: bool,
 }
 
 impl Default for Assistant {
@@ -126,6 +130,8 @@ impl Default for Assistant {
             launcher: Arc::new(launch_claude),
             cli: None,
             work_dir: None,
+            queued: None,
+            focus: false,
         }
     }
 }
@@ -681,6 +687,29 @@ fn read_events(stdout: Option<std::process::ChildStdout>, tx: &Sender<Event>, ch
 }
 
 /// The pane's contents (inside the task pane frame).
+/// What AI assistant ▸ Summarize asks.
+pub const SUMMARIZE: &str = "Summarize the open PDF: what it is, who it is from and to, and its key points. Write the summary in the document's language.";
+
+/// What AI assistant ▸ Translate starts the question with; the reader types the language.
+pub const TRANSLATE: &str = "Translate the open PDF into ";
+
+/// AI assistant ▸ Summarize, Ask about this document and Translate: Claude on the open PDF, in
+/// the Claude pane. False for any other command.
+pub fn tool(app: &mut crate::PdfCraftApp, command: &str) -> bool {
+    let a = &mut app.assistant;
+    match command {
+        "ai.summary" => a.queued = Some(SUMMARIZE.into()),
+        "ai.ask" => a.focus = true,
+        "ai.translate" => {
+            a.input = TRANSLATE.into();
+            a.focus = true;
+        }
+        _ => return false,
+    }
+    app.assistant_open = true;
+    true
+}
+
 pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let a = &mut app.assistant;
@@ -727,6 +756,16 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     let busy = a.busy();
     let edit = egui::TextEdit::multiline(&mut a.input).hint_text("Ask Claude…").desired_rows(2).desired_width(f32::INFINITY);
     let resp = ui.add_enabled(!busy, edit);
+    if a.focus && !busy {
+        a.focus = false;
+        resp.request_focus();
+        // The cursor after what is already there (Translate's "… into ").
+        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), resp.id) {
+            let end = egui::text::CCursor::new(a.input.chars().count());
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+            state.store(ui.ctx(), resp.id);
+        }
+    }
     let enter = resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
     if enter {
         // Enter sends; Shift+Enter is a new line. Drop the newline the key typed.
@@ -735,6 +774,10 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
         }
     }
     let mut send = enter;
+    if !busy && let Some(q) = a.queued.take() {
+        a.input = q;
+        send = true;
+    }
     ui.horizontal(|ui| {
         if a.busy() {
             if ui.button("Stop").clicked() {
@@ -838,6 +881,23 @@ mod tests {
         a.send(&egui::Context::default());
         assert_eq!(a.messages.last().map(|m| m.role), Some(Role::Error));
         assert!(!a.busy());
+    }
+
+    #[test]
+    fn ai_assistant_tools_open_the_claude_pane() {
+        let mut app = crate::PdfCraftApp::new();
+        assert!(tool(&mut app, "ai.summary"));
+        assert!(app.assistant_open);
+        assert_eq!(app.assistant.queued.as_deref(), Some(SUMMARIZE));
+        let mut app = crate::PdfCraftApp::new();
+        assert!(tool(&mut app, "ai.translate"));
+        assert!(app.assistant_open && app.assistant.focus);
+        assert_eq!(app.assistant.input, TRANSLATE);
+        let mut app = crate::PdfCraftApp::new();
+        assert!(tool(&mut app, "ai.ask"));
+        assert!(app.assistant_open && app.assistant.focus && app.assistant.queued.is_none());
+        // Other commands are left to the registry.
+        assert!(!tool(&mut app, "file.save"));
     }
 
     #[test]

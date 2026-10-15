@@ -499,6 +499,12 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
+                    // Claude: the pane where Claude works on the open PDF (also View ▸ Claude).
+                    if widgets::ghost_button(ui, "sparkles", "Claude").on_hover_text("Ask Claude about or change the open PDF").clicked() {
+                        app.assistant_open = !app.assistant_open;
+                        app.assistant.focus = app.assistant_open;
+                    }
+                    ui.add_space(4.0);
                     let has_doc = app.active.is_some();
                     ui.add_enabled_ui(has_doc, |ui| {
                         let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
