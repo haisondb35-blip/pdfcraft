@@ -206,13 +206,16 @@ fn backend_processes_stream_their_lines() {
     assert!(matches!(run_lines(Command::new("pdfcraft-no-such-program"), Duration::from_secs(5), |_| true), Err(ScanError::Failed(_))));
 }
 
-/// On Windows the real script runs: listing scanners works on a machine without any.
+/// On Windows the real script runs: a device that doesn't exist is reported offline. Listing
+/// connects to every scanner (waking it), so it runs only with PDFCRAFT_TEST_REAL_SCANNERS=1.
 #[cfg(windows)]
 #[test]
 fn the_wia_script_runs() {
-    match System.scanners() {
-        Ok(found) => assert!(found.iter().all(|s| !s.id.is_empty())),
-        Err(e) => assert!(matches!(e, ScanError::Unavailable(_)), "{e}"),
+    if std::env::var_os("PDFCRAFT_TEST_REAL_SCANNERS").is_some() {
+        match System.scanners() {
+            Ok(found) => assert!(found.iter().all(|s| !s.id.is_empty())),
+            Err(e) => assert!(matches!(e, ScanError::Unavailable(_)), "{e}"),
+        }
     }
     let ghost = Scanner { id: "pdfcraft-no-such-device".into(), name: String::new(), maker: String::new(), sources: vec![Source::Flatbed] };
     assert!(matches!(System.scan(&ghost, &ScanSettings::default(), &mut |_| true), Err(ScanError::Offline | ScanError::Unavailable(_))));

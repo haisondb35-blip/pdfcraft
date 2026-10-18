@@ -1011,7 +1011,9 @@ impl PdfCraftApp {
             ocr_batch: None,
             scan_draft: scan_ui::ScanDraft::default(),
             scan: None,
-            scan_backend: pdfcraft_engine::scan::system(),
+            // No scanners until the desktop app opts in (`set_scan_backend(scan::system())`), so
+            // tests never reach a real scanner.
+            scan_backend: std::sync::Arc::new(pdfcraft_engine::scan::Simulated::default()),
             run_inline: false,
             custom_actions: Vec::new(),
             wizard: Default::default(),

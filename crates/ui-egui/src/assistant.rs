@@ -37,6 +37,90 @@ pub struct Launch {
     pub mcp_config: PathBuf,
     /// The folder Claude runs in.
     pub work_dir: PathBuf,
+    /// Who answers.
+    pub provider: Provider,
+    /// The MCP server the configuration file names (Codex takes it on its command line).
+    pub server: McpServer,
+}
+
+/// Which assistant answers in the pane: Claude Code, or ChatGPT through OpenAI's Codex CLI. Both
+/// are programs installed and signed in on this computer, and both get only this app's tools.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Provider {
+    #[default]
+    Claude,
+    Codex,
+}
+
+impl Provider {
+    pub const ALL: [Provider; 2] = [Provider::Claude, Provider::Codex];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Provider::Claude => "Claude",
+            Provider::Codex => "ChatGPT (Codex)",
+        }
+    }
+
+    /// The name it is saved under.
+    pub fn key(self) -> &'static str {
+        match self {
+            Provider::Claude => "claude",
+            Provider::Codex => "codex",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Provider> {
+        Provider::ALL.into_iter().find(|p| p.key() == key)
+    }
+
+    /// The program, if it is installed.
+    pub fn find(self) -> Option<PathBuf> {
+        match self {
+            Provider::Claude => find_claude(),
+            Provider::Codex => find_codex(),
+        }
+    }
+
+    /// The program's own sign-in command (it opens a browser).
+    fn sign_in_args(self) -> &'static [&'static str] {
+        match self {
+            Provider::Claude => &["auth", "login"],
+            Provider::Codex => &["login"],
+        }
+    }
+
+    /// Where to get it.
+    fn install_hint(self) -> &'static str {
+        match self {
+            Provider::Claude => "Claude Code isn't installed: install it from https://claude.com/claude-code, then sign in",
+            Provider::Codex => "Codex isn't installed: install OpenAI's Codex CLI (https://developers.openai.com/codex), then sign in with ChatGPT",
+        }
+    }
+}
+
+/// An MCP server: the program, its arguments and the environment it needs.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct McpServer {
+    pub command: PathBuf,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+}
+
+/// Whether the chosen assistant is installed and signed in.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Login {
+    /// Not looked at yet.
+    #[default]
+    Unchecked,
+    Checking,
+    /// Signed in, as this account (or how).
+    SignedIn(String),
+    SignedOut,
+    /// Not installed.
+    Missing,
+    /// It couldn't tell (the program failed): what it said.
+    Unknown(String),
 }
 
 /// A question being answered: its events, and how to stop it.
@@ -113,6 +197,11 @@ pub struct Assistant {
     pub queued: Option<String>,
     /// Put the cursor in the input box when the pane is next drawn.
     pub focus: bool,
+    /// Who answers.
+    pub provider: Provider,
+    /// Whether that assistant is installed and signed in.
+    pub login: Login,
+    login_rx: Option<Receiver<Login>>,
 }
 
 impl Default for Assistant {
@@ -127,11 +216,14 @@ impl Default for Assistant {
             port: None,
             token: String::new(),
             starter: None,
-            launcher: Arc::new(launch_claude),
+            launcher: Arc::new(launch),
             cli: None,
             work_dir: None,
             queued: None,
             focus: false,
+            provider: Provider::default(),
+            login: Login::default(),
+            login_rx: None,
         }
     }
 }
@@ -184,7 +276,7 @@ impl Assistant {
     }
 
     /// The folder Claude runs in and the MCP configuration that connects it to this window.
-    fn prepare(&mut self, _ctx: &egui::Context) -> Result<(PathBuf, PathBuf), String> {
+    fn prepare(&mut self, _ctx: &egui::Context) -> Result<(PathBuf, PathBuf, McpServer), String> {
         let port = self.port.ok_or("the Claude pane needs the PdfCraft desktop app")?;
         let dir = match &self.work_dir {
             Some(d) => d.clone(),
@@ -199,7 +291,7 @@ impl Assistant {
         let config = mcp_config(&cli, port, &self.token);
         let path = dir.join("mcp.json");
         std::fs::write(&path, config.to_string()).map_err(|e| format!("couldn't write {}: {e}", path.display()))?;
-        Ok((dir, path))
+        Ok((dir, path, mcp_server(&cli, port, &self.token)))
     }
 
     /// Ask Claude what's in the input box.
@@ -213,10 +305,71 @@ impl Assistant {
         self.push(Role::User, prompt.clone());
         let launched = self
             .prepare(ctx)
-            .and_then(|(work_dir, mcp_config)| (self.launcher)(Launch { prompt, session: self.session.clone(), mcp_config, work_dir }));
+            .and_then(|(work_dir, mcp_config, server)| {
+                (self.launcher)(Launch { prompt, session: self.session.clone(), mcp_config, work_dir, provider: self.provider, server })
+            });
         match launched {
             Ok(r) => self.running = Some(r),
             Err(e) => self.push(Role::Error, e),
+        }
+    }
+
+    /// Answer with `provider` from now on: a new conversation (one assistant can't continue the
+    /// other's), and its sign-in is checked.
+    pub fn set_provider(&mut self, provider: Provider) {
+        if provider == self.provider {
+            return;
+        }
+        self.new_chat();
+        self.provider = provider;
+        self.login = Login::Unchecked;
+        self.check_login();
+    }
+
+    /// Look, in the background, at whether the assistant is installed and signed in.
+    pub fn check_login(&mut self) {
+        let (tx, rx) = channel();
+        let provider = self.provider;
+        self.login = Login::Checking;
+        self.login_rx = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(login_status(provider));
+        });
+    }
+
+    /// Take in a finished sign-in check.
+    pub fn poll_login(&mut self) {
+        if let Some(rx) = &self.login_rx {
+            match rx.try_recv() {
+                Ok(l) => {
+                    self.login = l;
+                    self.login_rx = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.login_rx = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+    }
+
+    /// Open the assistant's own sign-in in a console window (it opens the browser); the check
+    /// runs again when the pane is next used.
+    pub fn sign_in(&mut self) -> Result<(), String> {
+        let exe = self.provider.find().ok_or(self.provider.install_hint())?;
+        #[cfg(windows)]
+        {
+            let mut cmd = std::process::Command::new("cmd");
+            cmd.args(["/c", "start", "Sign in", "cmd", "/k"]).arg(&exe).args(self.provider.sign_in_args());
+            cmd.spawn().map_err(|e| format!("couldn't open the sign-in window: {e}"))?;
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = exe;
+            return Err(format!("run `{} {}` in a terminal to sign in", self.provider.key(), self.provider.sign_in_args().join(" ")));
+        }
+        #[allow(unreachable_code)]
+        {
+            self.login = Login::Unchecked;
+            Ok(())
         }
     }
 
@@ -303,6 +456,149 @@ pub fn mcp_config(cli: &Path, port: u16, token: &str) -> Value {
             }
         }
     })
+}
+
+/// The pdfcraft server connected to this window with its token, as Codex takes it.
+pub fn mcp_server(cli: &Path, port: u16, token: &str) -> McpServer {
+    McpServer {
+        command: cli.to_path_buf(),
+        args: vec!["mcp".into(), "--app".into(), port.to_string()],
+        env: vec![("PDFCRAFT_CONTROL_TOKEN".into(), token.into())],
+    }
+}
+
+/// What Codex is told before the first question (it has no separate system prompt).
+pub fn codex_instructions() -> String {
+    format!(
+        "{SYSTEM_PROMPT} Use only the pdfcraft tools: don't run shell commands or read or write files on the computer."
+    )
+}
+
+/// A TOML basic string, for Codex's `-c key=value` settings.
+fn toml_str(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            c if c.is_control() => out.push_str(&format!("\\u{:04X}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Codex's command-line arguments for a question (the prompt goes in on stdin, `-`): JSON
+/// events, a read-only sandbox that never asks for approval, and the pdfcraft server.
+pub fn codex_args(l: &Launch) -> Vec<String> {
+    let mut a: Vec<String> =
+        ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-c", "approval_policy=\"never\""].into_iter().map(String::from).collect();
+    let server = &l.server;
+    a.push("-c".into());
+    a.push(format!("mcp_servers.pdfcraft.command={}", toml_str(&server.command.to_string_lossy())));
+    a.push("-c".into());
+    a.push(format!("mcp_servers.pdfcraft.args=[{}]", server.args.iter().map(|x| toml_str(x)).collect::<Vec<_>>().join(",")));
+    if !server.env.is_empty() {
+        a.push("-c".into());
+        a.push(format!(
+            "mcp_servers.pdfcraft.env={{{}}}",
+            server.env.iter().map(|(k, v)| format!("{k}={}", toml_str(v))).collect::<Vec<_>>().join(",")
+        ));
+    }
+    if let Some(s) = &l.session {
+        a.push("resume".into());
+        a.push(s.clone());
+    }
+    a.push("-".into());
+    a
+}
+
+/// Where Codex is: `CODEX_PATH`, `codex` on the PATH, else where its Windows installer puts it.
+pub fn find_codex() -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("CODEX_PATH").map(PathBuf::from).filter(|p| p.is_file()) {
+        return Some(p);
+    }
+    let names: &[&str] = if cfg!(windows) { &["codex.exe", "codex.cmd"] } else { &["codex"] };
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(local).join(r"Programs\OpenAI\Codex\bin"));
+    }
+    names.iter().find_map(|n| dirs.iter().map(|d| d.join(n)).find(|p| p.is_file()))
+}
+
+/// The events in one line of `codex exec --json` (none for lines the pane doesn't show).
+pub fn parse_codex_line(line: &str) -> Vec<Event> {
+    let Ok(v) = serde_json::from_str::<Value>(line) else { return Vec::new() };
+    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
+    let item = v.get("item").unwrap_or(&Value::Null);
+    match (v.get("type").and_then(Value::as_str), item.get("type").and_then(Value::as_str)) {
+        (Some("thread.started"), _) => s(&v, "thread_id").map(Event::Session).into_iter().collect(),
+        // What it says; the last of a turn is the reply (taken when the turn completes).
+        (Some("item.completed"), Some("agent_message")) => {
+            s(item, "text").map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).map(Event::Text).into_iter().collect()
+        }
+        (Some("item.started"), Some("mcp_tool_call")) => {
+            s(item, "tool").map(|t| Event::Step(describe(&t, item.get("arguments").unwrap_or(&Value::Null)))).into_iter().collect()
+        }
+        (Some("item.started"), Some("command_execution")) => vec![Event::Step("Ran a command".into())],
+        (Some("turn.completed"), _) => vec![Event::Done(None)],
+        (Some("turn.failed"), _) => {
+            vec![Event::Done(Some(v.pointer("/error/message").and_then(Value::as_str).unwrap_or("ChatGPT couldn't finish").to_string()))]
+        }
+        (Some("error"), _) => vec![Event::Done(Some(s(&v, "message").unwrap_or_else(|| "ChatGPT couldn't finish".into())))],
+        _ => Vec::new(),
+    }
+}
+
+/// `claude auth status --json`'s answer.
+pub fn parse_claude_status(stdout: &str) -> Login {
+    let Ok(v) = serde_json::from_str::<Value>(stdout.trim()) else { return Login::Unknown(stdout.trim().chars().take(200).collect()) };
+    if v.get("loggedIn").and_then(Value::as_bool) == Some(true) {
+        let who = v.get("email").or_else(|| v.get("authMethod")).and_then(Value::as_str).unwrap_or("signed in");
+        Login::SignedIn(who.to_string())
+    } else {
+        Login::SignedOut
+    }
+}
+
+/// `codex login status`'s answer ("Logged in using ChatGPT", "Not logged in").
+pub fn parse_codex_status(output: &str) -> Login {
+    let text = output.trim();
+    if let Some(line) = text.lines().find(|l| l.trim_start().starts_with("Logged in")) {
+        let how = line.trim().trim_start_matches("Logged in").trim().trim_start_matches("using").trim();
+        Login::SignedIn(if how.is_empty() { "signed in".to_string() } else { how.to_string() })
+    } else if text.to_ascii_lowercase().contains("not logged in") {
+        Login::SignedOut
+    } else {
+        Login::Unknown(text.chars().take(200).collect())
+    }
+}
+
+/// Run the assistant's own status command (no window, no browser).
+fn login_status(provider: Provider) -> Login {
+    let Some(exe) = provider.find() else { return Login::Missing };
+    let mut cmd = std::process::Command::new(&exe);
+    match provider {
+        Provider::Claude => cmd.args(["auth", "status", "--json"]),
+        Provider::Codex => cmd.args(["login", "status"]),
+    };
+    cmd.stdin(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        cmd.creation_flags(0x0800_0000);
+    }
+    match cmd.output() {
+        Ok(out) => {
+            let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+            match provider {
+                Provider::Claude => parse_claude_status(&String::from_utf8_lossy(&out.stdout)),
+                Provider::Codex => parse_codex_status(&text),
+            }
+        }
+        Err(e) => Login::Unknown(e.to_string()),
+    }
 }
 
 /// Claude Code's command-line arguments for a question (the prompt goes in on stdin).
@@ -601,12 +897,22 @@ pub fn markdown(ui: &mut egui::Ui, text: &str) {
     }
 }
 
-/// Run Claude Code for a question.
-fn launch_claude(l: Launch) -> Result<Running, String> {
-    let claude = find_claude()
-        .ok_or("Claude Code isn't installed: install it (https://claude.com/claude-code), run `claude` once to sign in, then ask again")?;
-    let mut cmd = std::process::Command::new(&claude);
-    cmd.args(claude_args(&l))
+/// Turns one line of an assistant's output into events.
+type Parser = fn(&str) -> Vec<Event>;
+
+/// Run the chosen assistant for a question.
+fn launch(l: Launch) -> Result<Running, String> {
+    let exe = l.provider.find().ok_or(l.provider.install_hint())?;
+    let (args, prompt, parse): (Vec<String>, String, Parser) = match l.provider {
+        Provider::Claude => (claude_args(&l), l.prompt.clone(), parse_line),
+        Provider::Codex => {
+            // Codex has no separate system prompt: the first question carries the instructions.
+            let prompt = if l.session.is_none() { format!("{}\n\n{}", codex_instructions(), l.prompt) } else { l.prompt.clone() };
+            (codex_args(&l), prompt, parse_codex_line)
+        }
+    };
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.args(args)
         .current_dir(&l.work_dir)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -617,9 +923,8 @@ fn launch_claude(l: Launch) -> Result<Running, String> {
         // CREATE_NO_WINDOW: no console window flashes up.
         cmd.creation_flags(0x0800_0000);
     }
-    let mut child = cmd.spawn().map_err(|e| format!("couldn't start Claude Code ({}): {e}", claude.display()))?;
+    let mut child = cmd.spawn().map_err(|e| format!("couldn't start {} ({}): {e}", l.provider.label(), exe.display()))?;
     if let Some(mut stdin) = child.stdin.take() {
-        let prompt = l.prompt.clone();
         std::thread::spawn(move || {
             let _ = stdin.write_all(prompt.as_bytes());
         });
@@ -639,7 +944,8 @@ fn launch_claude(l: Launch) -> Result<Running, String> {
         });
     }
     let waiter = child.clone();
-    std::thread::spawn(move || read_events(stdout, &tx, &waiter, &err_text));
+    let provider = l.provider;
+    std::thread::spawn(move || read_events(stdout, &tx, &waiter, &err_text, parse, provider));
     let killer = child;
     Ok(Running {
         events: rx,
@@ -651,7 +957,14 @@ fn launch_claude(l: Launch) -> Result<Running, String> {
     })
 }
 
-fn read_events(stdout: Option<std::process::ChildStdout>, tx: &Sender<Event>, child: &Arc<Mutex<std::process::Child>>, err: &Arc<Mutex<String>>) {
+fn read_events(
+    stdout: Option<std::process::ChildStdout>,
+    tx: &Sender<Event>,
+    child: &Arc<Mutex<std::process::Child>>,
+    err: &Arc<Mutex<String>>,
+    parse: Parser,
+    provider: Provider,
+) {
     let mut finished = false;
     if let Some(out) = stdout {
         let mut reader = BufReader::new(out);
@@ -660,7 +973,7 @@ fn read_events(stdout: Option<std::process::ChildStdout>, tx: &Sender<Event>, ch
             match reader.by_ref().take(MAX_LINE).read_until(b'\n', &mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(_) => {
-                    for e in parse_line(String::from_utf8_lossy(&buf).trim()) {
+                    for e in parse(String::from_utf8_lossy(&buf).trim()) {
                         finished |= matches!(e, Event::Done(_));
                         if tx.send(e).is_err() {
                             return;
@@ -678,9 +991,9 @@ fn read_events(stdout: Option<std::process::ChildStdout>, tx: &Sender<Event>, ch
         let why = if !text.is_empty() {
             text
         } else if status.is_some_and(|s| s.success()) {
-            "Claude ended without an answer".to_string()
+            format!("{} ended without an answer", provider.label())
         } else {
-            "Claude Code stopped; run `claude` in a terminal once to check it is signed in".to_string()
+            format!("{} stopped: check it is signed in (Sign in, above)", provider.label())
         };
         let _ = tx.send(Event::Done(Some(why)));
     }
@@ -714,6 +1027,57 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let a = &mut app.assistant;
     a.poll(ui.ctx());
+    a.poll_login();
+    if a.login == Login::Unchecked {
+        // The choice is remembered with the window's other settings.
+        let saved = ui.ctx().data_mut(|d| d.get_persisted::<String>(egui::Id::new("assistant_provider")));
+        if let Some(p) = saved.as_deref().and_then(Provider::from_key) {
+            a.provider = p;
+        }
+        a.check_login();
+    }
+    if a.login == Login::Checking {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+    }
+    ui.horizontal(|ui| {
+        let mut chosen = a.provider;
+        egui::ComboBox::from_id_salt("assistant_provider").selected_text(chosen.label()).show_ui(ui, |ui| {
+            for p in Provider::ALL {
+                ui.selectable_value(&mut chosen, p, p.label());
+            }
+        });
+        if chosen != a.provider {
+            a.set_provider(chosen);
+            ui.ctx().data_mut(|d| d.insert_persisted(egui::Id::new("assistant_provider"), chosen.key().to_string()));
+        }
+        let (text, sign_in) = match &a.login {
+            Login::Unchecked | Login::Checking => ("Checking sign-in…".to_string(), false),
+            Login::SignedIn(who) => (format!("Signed in: {who}"), false),
+            Login::SignedOut => ("Not signed in".to_string(), true),
+            Login::Missing => ("Not installed".to_string(), false),
+            Login::Unknown(_) => ("Sign-in unknown".to_string(), true),
+        };
+        let colour = if matches!(a.login, Login::SignedIn(_)) { t.text_muted } else { egui::Color32::from_rgb(196, 43, 28) };
+        let tip = match &a.login {
+            Login::Missing => a.provider.install_hint().to_string(),
+            Login::Unknown(why) => why.clone(),
+            _ => String::new(),
+        };
+        let label = ui.label(egui::RichText::new(text).small().color(colour));
+        if !tip.is_empty() {
+            label.on_hover_text(tip);
+        }
+        if sign_in
+            && ui.small_button("Sign in").clicked()
+            && let Err(e) = a.sign_in()
+        {
+            a.messages.push(Msg { role: Role::Error, text: e });
+        }
+        if ui.small_button("↻").on_hover_text("Check the sign-in again").clicked() {
+            a.check_login();
+        }
+    });
+    ui.add_space(4.0);
     let input_h = 96.0;
     let list_h = (ui.available_height() - input_h).max(80.0);
     egui::ScrollArea::vertical().max_height(list_h).auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
@@ -819,7 +1183,14 @@ mod tests {
 
     #[test]
     fn claude_gets_only_the_pdfcraft_tools() {
-        let l = Launch { prompt: "x".into(), session: Some("s1".into()), mcp_config: PathBuf::from("m.json"), work_dir: PathBuf::from(".") };
+        let l = Launch {
+            prompt: "x".into(),
+            session: Some("s1".into()),
+            mcp_config: PathBuf::from("m.json"),
+            work_dir: PathBuf::from("."),
+            provider: Provider::Claude,
+            server: McpServer::default(),
+        };
         let a = claude_args(&l);
         let has = |pair: [&str; 2]| a.windows(2).any(|w| w[0] == pair[0] && w[1] == pair[1]);
         assert!(a.contains(&"--strict-mcp-config".to_string()));
@@ -898,6 +1269,85 @@ mod tests {
         assert!(app.assistant_open && app.assistant.focus && app.assistant.queued.is_none());
         // Other commands are left to the registry.
         assert!(!tool(&mut app, "file.save"));
+    }
+
+    #[test]
+    fn codex_gets_json_a_read_only_sandbox_and_only_the_pdfcraft_server() {
+        let server = McpServer {
+            command: PathBuf::from(r"C:\Program Files\App\pdfcraft-cli.exe"),
+            args: vec!["mcp".into(), "--app".into(), "4242".into()],
+            env: vec![("PDFCRAFT_CONTROL_TOKEN".into(), "t\"k".into())],
+        };
+        let l = Launch {
+            prompt: "x".into(),
+            session: None,
+            mcp_config: PathBuf::from("m.json"),
+            work_dir: PathBuf::from("."),
+            provider: Provider::Codex,
+            server,
+        };
+        let a = codex_args(&l);
+        assert_eq!(&a[..5], ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only"]);
+        assert!(a.contains(&"approval_policy=\"never\"".to_string()));
+        assert!(a.contains(&r#"mcp_servers.pdfcraft.command="C:\\Program Files\\App\\pdfcraft-cli.exe""#.to_string()), "{a:?}");
+        assert!(a.contains(&r#"mcp_servers.pdfcraft.args=["mcp","--app","4242"]"#.to_string()), "{a:?}");
+        assert!(a.contains(&r#"mcp_servers.pdfcraft.env={PDFCRAFT_CONTROL_TOKEN="t\"k"}"#.to_string()), "{a:?}");
+        assert_eq!(a.last().map(String::as_str), Some("-"), "the prompt comes on stdin");
+        assert!(!a.contains(&"resume".to_string()));
+        // A conversation goes on with `resume <id>`, before the stdin marker.
+        let a = codex_args(&Launch { session: Some("01a1".into()), ..l });
+        assert_eq!(&a[a.len() - 3..], ["resume", "01a1", "-"]);
+        assert!(codex_instructions().contains("pdfcraft tools"));
+    }
+
+    /// Lines as `codex exec --json` writes them (codex-cli 0.154).
+    #[test]
+    fn codex_json_lines_become_events() {
+        let lines = [
+            r#"{"type":"thread.started","thread_id":"01a14ee5-0526"}"#,
+            r#"{"type":"turn.started"}"#,
+            r#"{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I'll look."}}"#,
+            r#"{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"pdfcraft","tool":"doc_list","arguments":{},"result":null,"error":null,"status":"in_progress"}}"#,
+            r#"{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"pdfcraft","tool":"doc_list","arguments":{},"status":"completed"}}"#,
+            r#"{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"There are **0 documents open**."}}"#,
+            r#"{"type":"turn.completed","usage":{"input_tokens":1}}"#,
+        ];
+        let events: Vec<Event> = lines.iter().flat_map(|l| parse_codex_line(l)).collect();
+        assert_eq!(events[0], Event::Session("01a14ee5-0526".into()));
+        assert_eq!(events[1], Event::Text("I'll look.".into()));
+        assert!(matches!(&events[2], Event::Step(_)), "{events:?}");
+        assert_eq!(events[3], Event::Text("There are **0 documents open**.".into()));
+        assert_eq!(events[4], Event::Done(None));
+        assert_eq!(events.len(), 5, "a finished tool call adds nothing");
+        assert_eq!(parse_codex_line(r#"{"type":"turn.failed","error":{"message":"usage limit"}}"#), vec![Event::Done(Some("usage limit".into()))]);
+        assert_eq!(parse_codex_line(r#"{"type":"error","message":"stream closed"}"#), vec![Event::Done(Some("stream closed".into()))]);
+        for junk in ["", "not json", "{}", "[1]"] {
+            assert!(parse_codex_line(junk).is_empty(), "{junk:?}");
+        }
+    }
+
+    #[test]
+    fn sign_in_status_is_read_from_both_programs() {
+        assert_eq!(parse_claude_status(r#"{"loggedIn": true, "authMethod": "claude.ai", "email": "a@b.c"}"#), Login::SignedIn("a@b.c".into()));
+        assert_eq!(parse_claude_status(r#"{"loggedIn": false}"#), Login::SignedOut);
+        assert!(matches!(parse_claude_status("error: unknown command"), Login::Unknown(_)));
+        assert_eq!(parse_codex_status("Logged in using ChatGPT\n"), Login::SignedIn("ChatGPT".into()));
+        assert_eq!(parse_codex_status("Logged in using an API key - sk-***\n"), Login::SignedIn("an API key - sk-***".into()));
+        assert_eq!(parse_codex_status("Not logged in\n"), Login::SignedOut);
+        assert!(matches!(parse_codex_status("boom"), Login::Unknown(_)));
+        assert_eq!(Provider::from_key("codex"), Some(Provider::Codex));
+        assert_eq!(Provider::from_key(Provider::Claude.key()), Some(Provider::Claude));
+        assert_eq!(Provider::from_key("other"), None);
+    }
+
+    #[test]
+    fn switching_assistant_starts_a_new_conversation() {
+        let mut a = Assistant::default();
+        a.session = Some("s".into());
+        a.messages.push(Msg { role: Role::User, text: "hi".into() });
+        a.set_provider(Provider::Codex);
+        assert_eq!((a.provider, a.session.as_deref(), a.messages.len()), (Provider::Codex, None, 0));
+        assert_eq!(a.login, Login::Checking);
     }
 
     #[test]

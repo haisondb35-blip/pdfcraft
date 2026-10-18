@@ -371,6 +371,7 @@ fn app_creator<'a>(
     Box::new(move |cc| {
         started.set(true);
         let mut app = PdfCraftApp::new();
+        app.set_scan_backend(pdfcraft_engine::scan::system());
         // First start (or settings from before Units existed): the region's unit.
         app.units = pdfcraft_ui_egui::units::Unit::system();
         #[cfg(target_os = "linux")]
@@ -408,7 +409,7 @@ fn app_creator<'a>(
         // the tools read or write are kept to a folder of their own.
         app.tool_runner = Some(Box::new(|session, name, args| {
             let lent = std::mem::replace(session, pdfcraft_engine::Session::new());
-            let tools = pdfcraft_automation::Automation::over(lent);
+            let tools = pdfcraft_automation::Automation::over(lent).with_scan_backend(pdfcraft_engine::scan::system());
             let dir = std::env::temp_dir().join(format!("pdfcraft-claude-{}", std::process::id()));
             let mut tools = match std::fs::create_dir_all(&dir).and_then(|()| tools.with_root(&dir)) {
                 Ok(t) => t,

@@ -793,7 +793,7 @@ fn automation(args: &[String]) -> Result<pdfcraft_automation::Automation, String
             .ok_or("--app needs the window's token in PDFCRAFT_CONTROL_TOKEN")?;
         return Ok(pdfcraft_automation::Automation::remote(port, token));
     }
-    let a = pdfcraft_automation::Automation::new();
+    let a = pdfcraft_automation::Automation::new().with_scan_backend(pdfcraft_engine::scan::system());
     match flag(args, "--root") {
         Some(root) => a.with_root(root).map_err(|e| format!("--root {root}: {e}")),
         None => Ok(a),
