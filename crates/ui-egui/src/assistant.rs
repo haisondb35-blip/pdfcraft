@@ -90,6 +90,23 @@ impl Provider {
         }
     }
 
+    /// Its download page, for when it can't be installed from the pane.
+    fn download_page(self) -> &'static str {
+        match self {
+            Provider::Claude => "https://claude.com/claude-code",
+            Provider::Codex => "https://developers.openai.com/codex/cli",
+        }
+    }
+
+    /// The PowerShell that installs it with its maker's own installer: Anthropic's for Claude
+    /// Code, npm's package for Codex (when Node.js is there). `None`: open the download page.
+    fn install_script(self) -> Option<&'static str> {
+        match self {
+            Provider::Claude => Some("irm https://claude.ai/install.ps1 | iex"),
+            Provider::Codex => find_in(&["npm.cmd", "npm.exe", "npm"]).map(|_| "npm install -g @openai/codex"),
+        }
+    }
+
     /// Where to get it.
     fn install_hint(self) -> &'static str {
         match self {
@@ -373,6 +390,38 @@ impl Assistant {
         }
     }
 
+    /// Install the assistant with its maker's installer, in a console window the person watches;
+    /// the sign-in is checked again once that window is closed. Without a way to install it
+    /// from here, its download page opens instead.
+    pub fn install(&mut self) -> Result<(), String> {
+        #[cfg(windows)]
+        {
+            let Some(script) = self.provider.install_script() else {
+                std::process::Command::new("cmd")
+                    .args(["/c", "start", "", self.provider.download_page()])
+                    .spawn()
+                    .map_err(|e| format!("couldn't open {}: {e}", self.provider.download_page()))?;
+                return Ok(());
+            };
+            let command = format!("{script}; Write-Host; Read-Host 'Done. Press Enter to close this window'");
+            let mut child = std::process::Command::new("cmd")
+                .args(["/c", "start", "Install", "/wait", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &command])
+                .spawn()
+                .map_err(|e| format!("couldn't open the install window: {e}"))?;
+            let (tx, rx) = channel();
+            let provider = self.provider;
+            self.login = Login::Checking;
+            self.login_rx = Some(rx);
+            std::thread::spawn(move || {
+                let _ = child.wait();
+                let _ = tx.send(login_status(provider));
+            });
+            Ok(())
+        }
+        #[cfg(not(windows))]
+        Err(format!("install it from {}", self.provider.download_page()))
+    }
+
     /// Add a line to this answer's work (one folded entry under the question).
     fn work(&mut self, line: String) {
         match self.messages.last_mut() {
@@ -519,12 +568,7 @@ pub fn find_codex() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("CODEX_PATH").map(PathBuf::from).filter(|p| p.is_file()) {
         return Some(p);
     }
-    let names: &[&str] = if cfg!(windows) { &["codex.exe", "codex.cmd"] } else { &["codex"] };
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
-    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        dirs.push(PathBuf::from(local).join(r"Programs\OpenAI\Codex\bin"));
-    }
-    names.iter().find_map(|n| dirs.iter().map(|d| d.join(n)).find(|p| p.is_file()))
+    find_in(if cfg!(windows) { &["codex.exe", "codex.cmd"] } else { &["codex"] })
 }
 
 /// The events in one line of `codex exec --json` (none for lines the pane doesn't show).
@@ -626,9 +670,23 @@ pub fn find_claude() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("DECKCRAFT_CLAUDE").map(PathBuf::from).filter(|p| p.is_file()) {
         return Some(p);
     }
-    let names: &[&str] = if cfg!(windows) { &["claude.exe", "claude.cmd"] } else { &["claude"] };
-    let path = std::env::var_os("PATH")?;
-    let dirs: Vec<PathBuf> = std::env::split_paths(&path).collect();
+    find_in(if cfg!(windows) { &["claude.exe", "claude.cmd"] } else { &["claude"] })
+}
+
+/// The first of `names` on PATH, or in the folders the assistants' installers use (the app's
+/// PATH dates from before an install made from the pane): Claude Code's `~/.local/bin`, npm's
+/// global folder and Codex's Windows installer folder.
+fn find_in(names: &[&str]) -> Option<PathBuf> {
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
+        dirs.push(PathBuf::from(home).join(".local").join("bin"));
+    }
+    if let Some(app_data) = std::env::var_os("APPDATA") {
+        dirs.push(PathBuf::from(app_data).join("npm"));
+    }
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(local).join("Programs").join("OpenAI").join("Codex").join("bin"));
+    }
     names.iter().find_map(|n| dirs.iter().map(|d| d.join(n)).find(|p| p.is_file()))
 }
 
@@ -1073,6 +1131,12 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
         {
             a.messages.push(Msg { role: Role::Error, text: e });
         }
+        if matches!(a.login, Login::Missing)
+            && ui.small_button("Install").on_hover_text(a.provider.install_hint()).clicked()
+            && let Err(e) = a.install()
+        {
+            a.messages.push(Msg { role: Role::Error, text: e });
+        }
         if ui.small_button("↻").on_hover_text("Check the sign-in again").clicked() {
             a.check_login();
         }
@@ -1338,6 +1402,8 @@ mod tests {
         assert_eq!(Provider::from_key("codex"), Some(Provider::Codex));
         assert_eq!(Provider::from_key(Provider::Claude.key()), Some(Provider::Claude));
         assert_eq!(Provider::from_key("other"), None);
+        assert!(Provider::Claude.install_script().is_some_and(|s| s.contains("https://claude.ai/install.ps1")));
+        assert!(Provider::ALL.iter().all(|p| p.download_page().starts_with("https://")));
     }
 
     #[test]
