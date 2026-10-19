@@ -3233,7 +3233,7 @@ impl eframe::App for PdfCraftApp {
                 .frame(egui::Frame::NONE.fill(t.panel).inner_margin(12).stroke(egui::Stroke::new(1.0, t.divider)))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Claude").font(theme::semibold(15.5)));
+                        ui.label(egui::RichText::new("AI Assistant").font(theme::semibold(15.5)));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button("✕").on_hover_text("Close").clicked() {
                                 self.assistant_open = false;

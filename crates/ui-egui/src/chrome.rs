@@ -509,8 +509,8 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    // Claude: the pane where Claude works on the open PDF (also View ▸ Claude).
-                    if widgets::ghost_button(ui, "sparkles", "Claude").on_hover_text("Ask Claude about or change the open PDF").clicked() {
+                    // AI Assistant: the pane where Claude or ChatGPT works on the open PDF (also View ▸ AI Assistant).
+                    if widgets::ghost_button(ui, "sparkles", "AI Assistant").on_hover_text("Ask Claude or ChatGPT about the open PDF, or have it change the PDF").clicked() {
                         app.assistant_open = !app.assistant_open;
                         app.assistant.focus = app.assistant_open;
                     }
@@ -600,9 +600,9 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             }
             crate::commands::registry_menu(app, ui, "View");
             ui.menu_button(tl!("Display theme"), |ui| theme_menu(app, ui));
-            // Claude: a pane where Claude works on the open PDF, as Copilot does in Office.
+            // AI Assistant: a pane where Claude or ChatGPT works on the open PDF, as Copilot does in Office.
             let mut claude = app.assistant_open;
-            if ui.add(widgets::checkbox(&mut claude, "Claude")).changed() {
+            if ui.add(widgets::checkbox(&mut claude, "AI Assistant")).changed() {
                 app.assistant_open = claude;
                 ui.close();
             }
