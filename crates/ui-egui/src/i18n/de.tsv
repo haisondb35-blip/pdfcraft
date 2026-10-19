@@ -414,6 +414,12 @@
 	Preflight	Preflight
 	Convert colors	Farben konvertieren
 	Add printer marks	Druckermarken hinzufügen
+	Crop marks	Schnittmarken
+	Bleed marks	Anschnittmarken
+	Registration marks	Passermarken
+	Color bars	Farbkontrollstreifen
+	Page information	Seiteninformationen
+	Line weight	Linienstärke
 	Fix hairlines	Haarlinien korrigieren
 	Measure objects	Objekte messen
 	Measure	Messen

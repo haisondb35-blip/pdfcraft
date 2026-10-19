@@ -414,6 +414,12 @@
 	Preflight	Contrôle en amont
 	Convert colors	Convertir les couleurs
 	Add printer marks	Ajouter des repères d'impression
+	Crop marks	Traits de coupe
+	Bleed marks	Repères de fond perdu
+	Registration marks	Repères d'alignement
+	Color bars	Barres de couleurs
+	Page information	Informations sur la page
+	Line weight	Épaisseur de trait
 	Fix hairlines	Corriger les filets
 	Measure objects	Mesurer des objets
 	Measure	Mesurer

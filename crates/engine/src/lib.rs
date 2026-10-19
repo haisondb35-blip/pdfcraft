@@ -30,6 +30,7 @@ pub mod ocr;
 pub mod optimizer;
 pub mod print_raster;
 pub mod printcheck;
+pub mod printmarks;
 pub mod scan;
 mod scan_colours;
 mod scan_fields;
@@ -40,6 +41,7 @@ mod text_preview;
 pub mod word_count;
 pub mod xfa;
 
+pub use printmarks::PrinterMarks;
 pub use signature_image::{ImageSignaturePreview, SignatureImage};
 pub use signature_scan::{PhotoRect, ScanError, SignaturePhoto, Turn};
 pub use text_preview::TextEditPreview;
@@ -1566,6 +1568,12 @@ pub enum Edit {
     RemoveAttachment {
         name: String,
     },
+    /// Print production ▸ Add printer marks on `pages`; `title` starts each page information line.
+    AddPrinterMarks {
+        pages: Vec<usize>,
+        marks: PrinterMarks,
+        title: String,
+    },
     /// What a script (button or console) changed in form fields: values, read-only, required
     /// and visibility.
     ApplyScriptChanges {
@@ -1900,6 +1908,7 @@ pub const EDIT_LABELS: &[&str] = &[
     "Save as {level}",
     "Attach file",
     "Delete attachment",
+    "Add printer marks",
     "Edit script of {name}",
     "Delete document JavaScript",
     "Edit document JavaScript",
@@ -2034,6 +2043,7 @@ impl Edit {
             Edit::ConvertPdfA { level } => Label::with("Save as {level}", level.label()),
             Edit::AddAttachment { .. } => Label::of("Attach file"),
             Edit::RemoveAttachment { .. } => Label::of("Delete attachment"),
+            Edit::AddPrinterMarks { .. } => Label::of("Add printer marks"),
             Edit::SetFieldScript { name, .. } => Label::with("Edit script of {name}", name.as_str()),
             Edit::SetDocumentScript { script: None, .. } => Label::of("Delete document JavaScript"),
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
@@ -2232,6 +2242,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::ConvertPdfA { .. }
         | Edit::AddAttachment { .. }
         | Edit::RemoveAttachment { .. }
+        | Edit::AddPrinterMarks { .. }
         | Edit::EditTextLine { .. }
         | Edit::EditTextBlock { .. }
         | Edit::RegisterTextFont { .. }
@@ -2535,6 +2546,19 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
         Edit::AddAttachment { name, data, description } => {
             let new = pdfcraft_organize::NewAttachment { name, data, description: description.as_deref(), date: cx.date.as_deref() };
             pdfcraft_organize::add_attachment(doc, &new)?;
+        }
+        Edit::AddPrinterMarks { pages, marks, title } => {
+            // "D:20261019103000…" reads as "2026-10-19 10:30" on the page information line.
+            let when = cx
+                .date
+                .as_deref()
+                .and_then(|d| d.strip_prefix("D:"))
+                .and_then(|d| Some(format!("{}-{}-{} {}:{}", d.get(0..4)?, d.get(4..6)?, d.get(6..8)?, d.get(8..10)?, d.get(10..12)?)));
+            let info = |p: usize| match &when {
+                Some(w) => format!("{title}    Page {}    {w}", p.saturating_add(1)),
+                None => format!("{title}    Page {}", p.saturating_add(1)),
+            };
+            printmarks::add_printer_marks(doc, pages, marks, &info)?;
         }
         Edit::RemoveAttachment { name } => {
             if !pdfcraft_organize::remove_attachment(doc, name)? {

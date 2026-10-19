@@ -979,6 +979,27 @@ fn attach_file_embeds_a_file_and_the_panel_deletes_it() {
     h.get_by_label("ghi chú.txt");
 }
 
+/// Print production ▸ Add printer marks: the dialog marks the current page only when asked, and
+/// the page grows around its trim box.
+#[test]
+fn printer_marks_dialog_marks_the_current_page() {
+    let mut h = harness();
+    let before = h.state().session.get(h.state().active_ids().unwrap().1).unwrap().page_boxes();
+    assert!(h.state_mut().execute("prepress.marks"));
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, Some(Dialog::PrinterMarks));
+    h.get_by_label("Color bars");
+    h.get_by_label("Current page").click();
+    h.run_steps(1);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    let after = h.state().session.get(h.state().active_ids().unwrap().1).unwrap().page_boxes();
+    assert_eq!(after[0][3], before[0][1], "the trim box is where the page was");
+    assert!(after[0][0][2] > before[0][0][2], "the page grew to hold the marks");
+    assert_eq!(after.get(1), before.get(1), "other pages untouched");
+}
+
 /// Print production ▸ Preflight shows the print-readiness report of the open document, and
 /// Verify runs it again.
 #[test]

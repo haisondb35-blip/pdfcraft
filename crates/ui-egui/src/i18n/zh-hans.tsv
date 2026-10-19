@@ -1048,6 +1048,12 @@
 	Preflight	印前检查
 	Convert colors	转换颜色
 	Add printer marks	添加打印机标记
+	Crop marks	裁切标记
+	Bleed marks	出血标记
+	Registration marks	套准标记
+	Color bars	色条
+	Page information	页面信息
+	Line weight	线条粗细
 	Fix hairlines	修复细线
 	Measuring tool	测量工具
 	Geospatial location	地理空间位置

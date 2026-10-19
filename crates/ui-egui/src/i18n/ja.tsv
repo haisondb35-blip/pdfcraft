@@ -441,6 +441,12 @@
 	Preflight	プリフライト
 	Convert colors	色を変換
 	Add printer marks	プリンターマークを追加
+	Crop marks	トンボ
+	Bleed marks	裁ち落としマーク
+	Registration marks	レジストレーションマーク
+	Color bars	カラーバー
+	Page information	ページ情報
+	Line weight	線幅
 	Fix hairlines	極細線を修正
 	Measure objects	オブジェクトを測定
 	Measure	測定

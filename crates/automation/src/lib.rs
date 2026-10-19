@@ -425,6 +425,7 @@ impl Automation {
                 self.apply(&a, Edit::DuplicatePages { pages })?
             }
             "page_set_box" => self.page_set_box(&a)?,
+            "page_printer_marks" => self.page_printer_marks(&a)?,
             "page_transition_set" => self.page_transition_set(&a)?,
             "doc_create" => self.doc_create(&a)?,
             "xfa_to_static" => self.apply(&a, Edit::XfaToStatic)?,
@@ -1452,6 +1453,30 @@ impl Automation {
         };
         let display = a.opt_num("display")?.map(|s| s as f32);
         self.apply(a, Edit::SetTransition { pages, spec: TransitionSpec { transition, display } })
+    }
+
+    /// Print production ▸ Add printer marks (every kind unless turned off).
+    fn page_printer_marks(&mut self, a: &Args) -> Result<Value> {
+        let doc = self.doc(a)?;
+        let (n, title) = (doc.info.pages.len(), doc.name.clone());
+        let pages = match a.opt_ints("pages")? {
+            Some(_) => self.pages(a, "pages")?,
+            None => (0..n).collect(),
+        };
+        let on = |key: &str| -> Result<bool> { Ok(a.opt_bool(key)?.unwrap_or(true)) };
+        let line_width = a.opt_num("line_width")?.unwrap_or(0.25);
+        if !(line_width.is_finite() && line_width > 0.0 && line_width <= 4.0) {
+            return Err(ToolError::InvalidArgs("line_width must be more than 0 and at most 4 points".into()));
+        }
+        let marks = pdfcraft_engine::PrinterMarks {
+            crop: on("crop")?,
+            bleed: on("bleed")?,
+            registration: on("registration")?,
+            color_bars: on("color_bars")?,
+            page_info: on("page_info")?,
+            line_width,
+        };
+        self.apply(a, Edit::AddPrinterMarks { pages, marks, title })
     }
 
     fn page_set_box(&mut self, a: &Args) -> Result<Value> {

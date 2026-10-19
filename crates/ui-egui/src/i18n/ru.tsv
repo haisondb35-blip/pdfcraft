@@ -434,6 +434,12 @@
 	Preflight	Проверка перед печатью
 	Convert colors	Преобразовать цвета
 	Add printer marks	Добавить печатные метки
+	Crop marks	Метки обреза
+	Bleed marks	Метки выпуска за обрез
+	Registration marks	Метки приводки
+	Color bars	Цветовые шкалы
+	Page information	Сведения о странице
+	Line weight	Толщина линии
 	Fix hairlines	Исправить тонкие линии
 	Measure objects	Измерить объекты
 	Measure	Измерить

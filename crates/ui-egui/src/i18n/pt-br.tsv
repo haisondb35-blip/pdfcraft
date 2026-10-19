@@ -985,6 +985,12 @@
 	Preflight	Preflight
 	Convert colors	Converter cores
 	Add printer marks	Adicionar marcas de impressora
+	Crop marks	Marcas de corte
+	Bleed marks	Marcas de sangria
+	Registration marks	Marcas de registro
+	Color bars	Barras de cores
+	Page information	Informações da página
+	Line weight	Espessura da linha
 	Fix hairlines	Corrigir linhas finas
 	Measuring tool	Ferramenta de medição
 	Geospatial location	Localização geoespacial

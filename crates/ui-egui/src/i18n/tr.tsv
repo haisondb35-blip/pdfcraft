@@ -399,6 +399,12 @@
 	Preflight	Preflight
 	Convert colors	Renkleri dönüştür
 	Add printer marks	Yazıcı işaretleri ekle
+	Crop marks	Kesim işaretleri
+	Bleed marks	Taşma payı işaretleri
+	Registration marks	Kayıt işaretleri
+	Color bars	Renk çubukları
+	Page information	Sayfa bilgileri
+	Line weight	Çizgi kalınlığı
 	Fix hairlines	Kılcal çizgileri düzelt
 	Measure objects	Nesneleri ölç
 	Measure	Ölç

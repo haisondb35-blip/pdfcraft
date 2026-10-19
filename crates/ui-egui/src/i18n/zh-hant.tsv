@@ -992,6 +992,12 @@
 	Preflight	印前偵測
 	Convert colors	轉換色彩
 	Add printer marks	新增印刷標記
+	Crop marks	裁切標記
+	Bleed marks	出血標記
+	Registration marks	套準標記
+	Color bars	色條
+	Page information	頁面資訊
+	Line weight	線條粗細
 	Fix hairlines	修正極細線
 	Measuring tool	測量工具
 	Geospatial location	地理位置

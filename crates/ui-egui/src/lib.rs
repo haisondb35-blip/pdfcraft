@@ -103,6 +103,7 @@ mod panels;
 mod pickers;
 pub mod prepare;
 mod print_ui;
+mod printmarks_ui;
 mod signature_drag;
 pub mod units;
 mod web_print;
@@ -359,6 +360,8 @@ pub enum Dialog {
     AuditSpace(bool),
     /// Print production ▸ Preflight: the print-readiness report.
     Preflight,
+    /// Print production ▸ Add printer marks.
+    PrinterMarks,
     /// Signatures ▸ Show certificate.
     CertificateViewer,
 }
@@ -786,6 +789,8 @@ pub struct PdfCraftApp {
     pub protect_draft: protect::ProtectDraft,
     /// Set Page Boxes dialog state.
     pub boxes_draft: pageboxes::BoxesDraft,
+    /// Print production ▸ Add printer marks: the dialog's choices.
+    pub printer_marks_draft: printmarks_ui::MarksDraft,
     /// Header & footer / watermark / background dialog state.
     pub marks_draft: marks_ui::MarksDraft,
     /// Export dialog settings.
@@ -1079,6 +1084,7 @@ impl PdfCraftApp {
             pending_remote_link: None,
             protect_draft: Default::default(),
             boxes_draft: Default::default(),
+            printer_marks_draft: Default::default(),
             marks_draft: Default::default(),
             export_draft: Default::default(),
             export_status: None,
@@ -2613,6 +2619,7 @@ impl PdfCraftApp {
                     "split" => Some(Dialog::Split),
                     "protect" => Some(Dialog::Protect),
                     "page-boxes" => Some(Dialog::PageBoxes),
+                    "printer-marks" => Some(Dialog::PrinterMarks),
                     "header-footer" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter)),
                     "watermark" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Watermark)),
                     "background" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Background)),

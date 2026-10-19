@@ -5990,3 +5990,26 @@ fn attach_file_adds_and_removes_a_document_attachment() {
     assert_eq!(names(&s), ["ghi chú (2).txt"]);
     assert!(s.apply(id, Edit::RemoveAttachment { name: "missing.txt".into() }).is_err(), "nothing to remove");
 }
+
+/// Print production ▸ Add printer marks grows the page around its trim box to hold the marks,
+/// keeps the trim box where the page was, and undoes cleanly.
+#[test]
+fn printer_marks_grow_the_page_and_keep_the_trim() {
+    let (mut s, id) = session_with(2);
+    let before = s.get(id).unwrap().page_boxes();
+    let marks = crate::PrinterMarks::default();
+    s.apply(id, Edit::AddPrinterMarks { pages: vec![0], marks, title: "Bảng lương.pdf".into() }).unwrap();
+    let after = s.get(id).unwrap().page_boxes();
+    let ([media, crop, _, trim, _], old) = (after[0], before[0]);
+    assert_eq!(trim, old[1], "the trim box is where the page was");
+    assert!(media[0] < trim[0] - 20.0 && media[1] < trim[1] - 20.0 && media[2] > trim[2] + 20.0 && media[3] > trim[3] + 20.0, "{media:?}");
+    assert_eq!(crop, media, "the marks are shown");
+    assert_eq!(after[1], before[1], "page 2 untouched");
+    let lines: Vec<String> = s.get(id).unwrap().text_lines(0).into_iter().map(|l| l.text).collect();
+    assert!(lines.iter().any(|l| l.contains("Bang luong.pdf") && l.contains("Page 1")), "the page information line: {lines:?}");
+    s.undo(id).unwrap();
+    assert_eq!(s.get(id).unwrap().page_boxes(), before);
+    let none = crate::PrinterMarks { crop: false, bleed: false, registration: false, color_bars: false, page_info: false, line_width: 0.25 };
+    assert!(s.apply(id, Edit::AddPrinterMarks { pages: vec![0], marks: none, title: String::new() }).is_err(), "no marks chosen");
+    assert!(s.apply(id, Edit::AddPrinterMarks { pages: vec![5], marks, title: String::new() }).is_err(), "no such page");
+}

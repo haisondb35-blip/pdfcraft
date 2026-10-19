@@ -876,6 +876,25 @@ pub fn tools() -> Vec<ToolDef> {
             &["doc"],
         )),
         t(
+            "page_printer_marks",
+            "Add printer marks",
+            "Print production ▸ Add printer marks: crop marks at the trim corners, bleed marks, registration targets, CMYK colour bars and a page information line (file name, page, date), drawn in all process inks outside the trim box. The media and crop boxes grow around the trim box to hold them; the trim and bleed boxes stay. Every kind is on unless set to false. Undoable.",
+        )
+        .cmd("prepress.marks")
+        .with(schema(
+            json!({
+                "doc": doc(),
+                "pages": pages("to mark (default: all)"),
+                "crop": { "type": "boolean" },
+                "bleed": { "type": "boolean" },
+                "registration": { "type": "boolean" },
+                "color_bars": { "type": "boolean" },
+                "page_info": { "type": "boolean" },
+                "line_width": { "type": "number", "exclusiveMinimum": 0, "maximum": 4, "description": "Points (default 0.25)." },
+            }),
+            &["doc"],
+        )),
+        t(
             "page_set_box",
             "Set page boxes / crop",
             "Set a page box (crop by default; also trim, bleed, art, media) on pages: either margins in points from the media box [left, bottom, right, top], or an absolute rect in points from the top-left of the displayed page. Omit both to reset the box to its default. Undoable.",

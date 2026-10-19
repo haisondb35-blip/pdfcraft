@@ -441,6 +441,12 @@
 	Preflight	فحص ما قبل الطباعة
 	Convert colors	تحويل الألوان
 	Add printer marks	إضافة علامات الطابعة
+	Crop marks	علامات القص
+	Bleed marks	علامات النزف
+	Registration marks	علامات التسجيل
+	Color bars	أشرطة الألوان
+	Page information	معلومات الصفحة
+	Line weight	سُمك الخط
 	Fix hairlines	إصلاح الخطوط الرفيعة
 	Measure objects	قياس الكائنات
 	Measure	قياس

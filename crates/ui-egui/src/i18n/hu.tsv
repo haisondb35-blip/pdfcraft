@@ -412,6 +412,12 @@
 	Preflight	Elővizsgálat
 	Convert colors	Színek konvertálása
 	Add printer marks	Nyomdai jelek hozzáadása
+	Crop marks	Vágójelek
+	Bleed marks	Kifutójelek
+	Registration marks	Illesztőjelek
+	Color bars	Színsávok
+	Page information	Oldalinformációk
+	Line weight	Vonalvastagság
 	Fix hairlines	Hajszálvonalak javítása
 	Measure objects	Objektumok mérése
 	Measure	Mérés

@@ -54,6 +54,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut link_command: Option<&'static str> = None;
     let mut protect_now = false;
     let mut boxes_now = false;
+    let mut printer_marks_now = false;
     let mut marks_now = false;
     let mut export_now = false;
     let mut props_now = false;
@@ -1007,6 +1008,13 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = apply || cancel;
                 return;
             }
+            Dialog::PrinterMarks => {
+                ui.set_width(380.0);
+                let (apply, cancel) = crate::printmarks_ui::body(ui, app, &t);
+                printer_marks_now = apply;
+                close = apply || cancel;
+                return;
+            }
             Dialog::PageBoxes => {
                 let (apply, cancel) = crate::pageboxes::body(ui, app, &t);
                 boxes_now = apply;
@@ -1374,6 +1382,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
         let count = app.session.get(id).map(|d| d.info.pages.len()).unwrap_or(0);
         let edit = crate::marks_ui::edit(&app.marks_draft, kind, count);
         app.apply_edit(edit);
+    }
+    if printer_marks_now {
+        app.apply_printer_marks();
     }
     if boxes_now && let Some((i, id)) = app.active_ids() {
         let count = app.session.get(id).map(|d| d.info.pages.len()).unwrap_or(0);

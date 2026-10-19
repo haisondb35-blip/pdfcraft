@@ -373,6 +373,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.crop", "Crop pages", PAGES, None, Assembly, "crop"),
     c("page.boxes", "Set page boxes…", PAGES, None, Assembly, "square-dashed-mouse-pointer"),
     c("edit.attach", "Attach file", None, None, Modification, "paperclip"),
+    c("prepress.marks", "Add printer marks", None, None, Modification, "ruler"),
     c("page.insert", "Insert pages from file…", PAGES, None, Assembly, "file-input"),
     c("page.insert_scan", "Insert pages from scanner…", PAGES, None, Assembly, "scan"),
     c("page.replace", "Replace pages…", PAGES, None, Assembly, "replace"),

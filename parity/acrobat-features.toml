@@ -8305,11 +8305,11 @@ title = "Add printer marks (crop, bleed, registration, colour bars)"
 area = "L"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["prepress.marks"]
+tools = ["page_printer_marks"]
+evidence = ["crates/engine/src/tests.rs::printer_marks_grow_the_page_and_keep_the_trim", "crates/automation/tests/automation.rs::printer_marks_through_tools", "crates/ui-egui/tests/viewer.rs::printer_marks_dialog_marks_the_current_page"]
+notes = "Crop marks at the trim corners, bleed marks at the bleed corners, registration targets at the middle of each side, CMYK colour bars (process inks, overprints, a black tint ramp; as many as fit) and a page information line (file name, page, date; accents dropped, Helvetica), in 0.125, 0.25 or 0.5 pt, drawn in all four process inks outside the trim box. The media and crop boxes grow around the trim box; trim and bleed boxes stay. Still missing: a true /Separation /All registration colour, the Japanese and Western style choice, mark offset, and placing marks on a separate sheet."
 
 [[feature]]
 id = "print.fix-hairlines"

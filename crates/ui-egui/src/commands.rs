@@ -522,6 +522,7 @@ impl PdfCraftApp {
             "sign.panel" => self.choose_right_panel(Some(RightPanel::Signatures)),
             "optimize.advanced" => self.dialog = Some(Dialog::Optimize),
             "edit.attach" => self.attach_file_document(),
+            "prepress.marks" => self.dialog = Some(Dialog::PrinterMarks),
             "optimize.audit" => {
                 self.space_audit = self.active_ids().and_then(|(_, id)| self.session.get(id)).map(|d| d.audit_space()).unwrap_or_default();
                 self.dialog = Some(Dialog::AuditSpace(false));
