@@ -3349,11 +3349,11 @@ title = "Add file attachments"
 area = "D"
 tier = "P2"
 milestone = "M12"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["edit.attach"]
+tools = ["attachment_add"]
+evidence = ["crates/organize/src/tests.rs::attach_file_embeds_and_removes_document_attachments", "crates/organize/src/tests.rs::attach_file_starts_a_tree_and_refuses_a_blank_name", "crates/engine/src/tests.rs::attach_file_adds_and_removes_a_document_attachment", "crates/automation/tests/automation.rs::attaching_files_through_tools", "crates/ui-egui/tests/viewer.rs::attach_file_embeds_a_file_and_the_panel_deletes_it"]
+notes = "Edit a PDF ▸ Attach file embeds a chosen file in /Names /EmbeddedFiles (file specification with /F and /UF, an embedded file stream with /Size and /ModDate) and opens the Attachments panel; a name already in use gets \" (2)\" before its extension; undoable. Files over 512 MB are refused. Still missing: AFRelationship (PDF/A-3), editing the description afterwards, attaching several files at once."
 
 [[feature]]
 id = "organize.attachments-delete"
@@ -3361,11 +3361,11 @@ title = "Delete attachments"
 area = "D"
 tier = "P2"
 milestone = "M12"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["edit.attach"]
+tools = ["attachment_remove"]
+evidence = ["crates/organize/src/tests.rs::attach_file_embeds_and_removes_document_attachments", "crates/engine/src/tests.rs::attach_file_adds_and_removes_a_document_attachment", "crates/automation/tests/automation.rs::attaching_files_through_tools", "crates/ui-egui/tests/viewer.rs::attach_file_embeds_a_file_and_the_panel_deletes_it"]
+notes = "The Attachments panel deletes document-level attachments (undoable); the tree goes when the last one does, other name trees stay. Attachments on a page are comments and are deleted as comments. The file's objects stay until a full save drops them."
 
 [[feature]]
 id = "organize.attachments-description"

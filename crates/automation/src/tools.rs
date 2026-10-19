@@ -233,6 +233,12 @@ pub fn tools() -> Vec<ToolDef> {
                 json!({ "doc": doc(), "at": { "type": "integer", "minimum": 1 }, "width": { "type": "number", "description": "Points." }, "height": { "type": "number", "description": "Points." } }),
                 &["doc", "at"],
             )),
+        t("attachment_add", "Attach file", "Edit a PDF ▸ Attach file: embed the file at `path` in the document (the Attachments panel lists it). `name` defaults to the file's name; a name already in use gets \" (2)\" before its extension. Undoable; save the document to keep it.")
+            .cmd("edit.attach")
+            .with(schema(json!({ "doc": doc(), "path": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" } }), &["doc", "path"])),
+        t("attachment_remove", "Delete attachment", "Remove the document-level attachment named `name` (as doc_info lists it under attachments). Attachments on a page are comments: delete those with comment_delete. Undoable.")
+            .cmd("edit.attach")
+            .with(schema(json!({ "doc": doc(), "name": { "type": "string" } }), &["doc", "name"])),
         t("page_insert_file", "Insert pages from a file", "Insert pages of another PDF so the first becomes page `at`. Its bookmarks come along, collapsed under one bookmark named after the file, placed among the document's bookmarks where the pages went. Undoable.")
             .cmd("page.insert")
             .with(schema(json!({ "doc": doc(), "path": { "type": "string" }, "at": { "type": "integer", "minimum": 1 }, "pages": pages("of the source file (default: all)") }), &["doc", "path", "at"])),

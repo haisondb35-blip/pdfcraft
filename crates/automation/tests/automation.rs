@@ -3186,6 +3186,37 @@ fn inserting_a_file_brings_its_bookmarks() {
     assert_eq!(kids, [("Annex intro", json!(2)), ("Annex table", json!(3))], "{list}");
 }
 
+/// Edit a PDF ▸ Attach file through tools: the file is embedded under its own name (a second one
+/// with the same name gets " (2)"), carried by the saved file, and removed again.
+#[test]
+fn attaching_files_through_tools() {
+    let dir = workdir("attach");
+    std::fs::write(
+        dir.join("bảng lương.csv"),
+        "Tên,Lương
+An,10
+",
+    )
+    .unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    ok(&mut a, "attachment_add", json!({ "doc": doc, "path": "bảng lương.csv", "description": "Tháng 9" }));
+    ok(&mut a, "attachment_add", json!({ "doc": doc, "path": "bảng lương.csv" }));
+    let names = |a: &mut pdfcraft_automation::Automation, doc: u64| -> Vec<String> {
+        ok(a, "doc_info", json!({ "doc": doc }))["attachments"].as_array().unwrap().iter().map(|x| x["name"].as_str().unwrap().to_string()).collect()
+    };
+    let mut got = names(&mut a, doc);
+    got.sort();
+    assert_eq!(got, ["bảng lương (2).csv", "bảng lương.csv"]);
+    ok(&mut a, "doc_save", json!({ "doc": doc, "path": "attached.pdf" }));
+    let saved = ok(&mut a, "doc_open", json!({ "path": "attached.pdf" }))["doc"].as_u64().unwrap();
+    assert_eq!(names(&mut a, saved).len(), 2, "the saved file carries both");
+    ok(&mut a, "attachment_remove", json!({ "doc": doc, "name": "bảng lương.csv" }));
+    assert_eq!(names(&mut a, doc), ["bảng lương (2).csv"]);
+    assert!(a.call("attachment_remove", &json!({ "doc": doc, "name": "bảng lương.csv" })).is_err(), "already removed");
+    assert!(a.call("attachment_add", &json!({ "doc": doc, "path": "../outside.txt" })).is_err(), "confined to the root");
+}
+
 #[test]
 fn replacing_pages_through_tools() {
     let dir = workdir("replace");

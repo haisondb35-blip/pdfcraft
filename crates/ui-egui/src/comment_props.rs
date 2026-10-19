@@ -69,6 +69,32 @@ impl PdfCraftApp {
         }
     }
 
+    /// Edit a PDF ▸ Attach file: ask for a file (or take `attach_override`) and embed it in the
+    /// active document, where the Attachments panel lists it.
+    pub fn attach_file_document(&mut self) {
+        match self.attach_override.take() {
+            Some((file, data)) => self.add_document_attachment(file, data),
+            #[cfg(not(target_arch = "wasm32"))]
+            None => {
+                // Attached on a later frame, and only to the document it was started on.
+                let target = self.active_ids().map(|(_, id)| id);
+                let dialog = rfd::AsyncFileDialog::new().set_title(tl!("Attach a file"));
+                self.ask_one(crate::pickers::Ask::File(dialog), target, move |app, p| match std::fs::read(&p) {
+                    Ok(data) => app.add_document_attachment(p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(), data),
+                    Err(e) => app.notify_fmt("Couldn't read {name}: {e}", &[("name", &p.display().to_string()), ("e", &e.to_string())]),
+                });
+            }
+            #[cfg(target_arch = "wasm32")]
+            None => {}
+        }
+    }
+
+    fn add_document_attachment(&mut self, name: String, data: Vec<u8>) {
+        if self.apply_edit(Edit::AddAttachment { name, data: std::sync::Arc::new(data), description: None }) {
+            self.choose_right_panel(Some(crate::RightPanel::Attachments));
+        }
+    }
+
     /// Add a file attachment comment at `at` on `page` of the active document.
     fn add_attachment_comment(&mut self, page: usize, at: [f64; 2], file: String, data: Vec<u8>) {
         let tool = crate::comments::CommentTool::Attach;

@@ -556,7 +556,7 @@ fn name_tree_lookup(src: &Document, node: &Object, key: &[u8], depth: u8) -> Opt
 }
 
 /// All (key, value) pairs of a name tree, in order.
-fn name_tree_entries(src: &Document, node: &Object, depth: u8, out: &mut Vec<(Vec<u8>, Object)>) {
+pub(crate) fn name_tree_entries(src: &Document, node: &Object, depth: u8, out: &mut Vec<(Vec<u8>, Object)>) {
     if depth > 32 {
         return;
     }

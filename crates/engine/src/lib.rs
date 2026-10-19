@@ -249,6 +249,7 @@ fn uses_scripts(edit: &Edit) -> bool {
 fn scope_of(edit: &Edit) -> Scope {
     match edit {
         Edit::SetInfo { .. } => Scope::Metadata,
+        Edit::AddAttachment { .. } | Edit::RemoveAttachment { .. } => Scope::Full,
         // A file attachment also changes the Attachments list.
         Edit::AddAnnotation(a) if matches!(a.shape, Shape::Attachment { .. }) => Scope::Full,
         Edit::AddMeasurement(_)
@@ -1554,6 +1555,17 @@ pub enum Edit {
     ConvertPdfA {
         level: pdfcraft_preflight::Level,
     },
+    /// Edit a PDF ▸ Attach file: embed a file in the document (the Attachments panel). A name
+    /// already in use gets " (2)"….
+    AddAttachment {
+        name: String,
+        data: Arc<Vec<u8>>,
+        description: Option<String>,
+    },
+    /// Remove the document-level attachment named `name` (Attachments panel ▸ Delete).
+    RemoveAttachment {
+        name: String,
+    },
     /// What a script (button or console) changed in form fields: values, read-only, required
     /// and visibility.
     ApplyScriptChanges {
@@ -1886,6 +1898,8 @@ pub const EDIT_LABELS: &[&str] = &[
     "Run JavaScript",
     "Run form script",
     "Save as {level}",
+    "Attach file",
+    "Delete attachment",
     "Edit script of {name}",
     "Delete document JavaScript",
     "Edit document JavaScript",
@@ -2018,6 +2032,8 @@ impl Edit {
             Edit::XfaEvent { .. } => Label::of("Run form script"),
             // The level is the standard's own name ("PDF/A-2b"), so it goes in as it stands.
             Edit::ConvertPdfA { level } => Label::with("Save as {level}", level.label()),
+            Edit::AddAttachment { .. } => Label::of("Attach file"),
+            Edit::RemoveAttachment { .. } => Label::of("Delete attachment"),
             Edit::SetFieldScript { name, .. } => Label::with("Edit script of {name}", name.as_str()),
             Edit::SetDocumentScript { script: None, .. } => Label::of("Delete document JavaScript"),
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
@@ -2214,6 +2230,8 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::SetDocumentScript { .. }
         | Edit::SetFieldScript { .. }
         | Edit::ConvertPdfA { .. }
+        | Edit::AddAttachment { .. }
+        | Edit::RemoveAttachment { .. }
         | Edit::EditTextLine { .. }
         | Edit::EditTextBlock { .. }
         | Edit::RegisterTextFont { .. }
@@ -2513,6 +2531,15 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
                 Some(js) => pdfcraft_forms::recalculate_with(doc, js)?,
                 None => pdfcraft_forms::recalculate(doc)?,
             };
+        }
+        Edit::AddAttachment { name, data, description } => {
+            let new = pdfcraft_organize::NewAttachment { name, data, description: description.as_deref(), date: cx.date.as_deref() };
+            pdfcraft_organize::add_attachment(doc, &new)?;
+        }
+        Edit::RemoveAttachment { name } => {
+            if !pdfcraft_organize::remove_attachment(doc, name)? {
+                return Err(EditError::Invalid(format!("the document has no attachment named {name}")));
+            }
         }
         Edit::ConvertPdfA { level } => {
             pdfcraft_preflight::convert(doc, *level).map_err(|e| EditError::Invalid(e.to_string()))?;

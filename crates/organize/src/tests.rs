@@ -2676,3 +2676,60 @@ fn a_chain_of_objects_too_deep_to_copy_is_refused_and_leaves_the_destination_alo
         .join();
     assert!(run.is_ok(), "the copy must not overflow the stack");
 }
+
+fn attachment_names(doc: &Document) -> Vec<String> {
+    let Some(names) = catalog(doc).get(b"Names").map(|n| doc.resolve(n).as_dict().cloned().unwrap()) else { return Vec::new() };
+    let Some(tree) = names.get(b"EmbeddedFiles").map(|t| doc.resolve(t).as_dict().cloned().unwrap()) else { return Vec::new() };
+    tree.get(b"Names").and_then(|n| n.as_array()).unwrap().chunks(2).map(|p| p[0].as_string().unwrap().to_text()).collect()
+}
+
+fn attachment_bytes(doc: &Document, name: &str) -> Vec<u8> {
+    let names = doc.resolve(catalog(doc).get(b"Names").unwrap()).as_dict().cloned().unwrap();
+    let tree = doc.resolve(names.get(b"EmbeddedFiles").unwrap()).as_dict().cloned().unwrap();
+    let list = tree.get(b"Names").and_then(|n| n.as_array()).unwrap().to_vec();
+    let spec = list.chunks(2).find(|p| p[0].as_string().unwrap().to_text() == name).map(|p| doc.resolve(&p[1]).as_dict().cloned().unwrap()).unwrap();
+    let ef = spec.get(b"EF").and_then(|e| e.as_dict()).cloned().unwrap();
+    match &*doc.resolve(ef.get(b"F").unwrap()) {
+        Object::Stream(s) => s.decoded().unwrap(),
+        other => panic!("not a stream: {other:?}"),
+    }
+}
+
+/// Attach file embeds the file in the document's EmbeddedFiles tree, next to the ones already
+/// there, under a unique name; Vietnamese names and contents survive a save and reopen.
+#[test]
+fn attach_file_embeds_and_removes_document_attachments() {
+    let mut doc = doc_c();
+    let file = NewAttachment { name: "notes.txt", data: b"second", description: Some("Ghi chú"), date: None };
+    assert_eq!(add_attachment(&mut doc, &file).unwrap(), "notes (2).txt");
+    let vi = NewAttachment { name: "Bảng lương tháng 9.xlsx", data: &[1, 2, 3, 0, 255], description: None, date: Some("D:20261019") };
+    assert_eq!(add_attachment(&mut doc, &vi).unwrap(), "Bảng lương tháng 9.xlsx");
+    let doc = full_roundtrip(&doc);
+    let mut names = attachment_names(&doc);
+    names.sort();
+    assert_eq!(names, ["Bảng lương tháng 9.xlsx", "notes (2).txt", "notes.txt"]);
+    assert_eq!(attachment_bytes(&doc, "notes.txt"), b"hello", "the attachment already there is kept");
+    assert_eq!(attachment_bytes(&doc, "notes (2).txt"), b"second");
+    assert_eq!(attachment_bytes(&doc, "Bảng lương tháng 9.xlsx"), [1, 2, 3, 0, 255]);
+    // Removing the last ones drops the tree but keeps the other name trees.
+    let mut doc = doc;
+    for name in ["notes.txt", "notes (2).txt", "Bảng lương tháng 9.xlsx"] {
+        assert!(remove_attachment(&mut doc, name).unwrap(), "{name}");
+    }
+    assert!(!remove_attachment(&mut doc, "notes.txt").unwrap(), "already gone");
+    let doc = full_roundtrip(&doc);
+    assert!(attachment_names(&doc).is_empty());
+    let names = doc.resolve(catalog(&doc).get(b"Names").unwrap()).as_dict().cloned().unwrap();
+    assert!(names.get(b"Dests").is_some(), "the named destinations stay");
+}
+
+/// A document without attachments gets a tree; a blank name is refused.
+#[test]
+fn attach_file_starts_a_tree_and_refuses_a_blank_name() {
+    let mut doc = open(fixture());
+    assert!(add_attachment(&mut doc, &NewAttachment { name: "  ", data: b"x", description: None, date: None }).is_err());
+    assert_eq!(add_attachment(&mut doc, &NewAttachment { name: "readme", data: b"x", description: None, date: None }).unwrap(), "readme");
+    assert_eq!(add_attachment(&mut doc, &NewAttachment { name: "readme", data: b"y", description: None, date: None }).unwrap(), "readme (2)");
+    let doc = full_roundtrip(&doc);
+    assert_eq!(attachment_names(&doc), ["readme", "readme (2)"]);
+}

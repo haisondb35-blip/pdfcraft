@@ -962,6 +962,23 @@ fn audit_space_usage_from_all_tools_closes_on_ok() {
     assert_eq!(h.state().dialog, None, "closed, not the optimizer");
 }
 
+/// Edit a PDF ▸ Attach file embeds the chosen file and opens the Attachments panel, which lists
+/// it with a Delete button that takes it out again (undoably).
+#[test]
+fn attach_file_embeds_a_file_and_the_panel_deletes_it() {
+    let mut h = harness();
+    h.state_mut().attach_override = Some(("ghi chú.txt".into(), "Xin chào".as_bytes().to_vec()));
+    assert!(h.state_mut().execute("edit.attach"));
+    h.run_steps(3);
+    h.get_by_label("ghi chú.txt");
+    h.get_by_label("Delete").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("ghi chú.txt").is_none(), "deleted");
+    assert!(h.state_mut().execute("edit.undo"));
+    h.run_steps(3);
+    h.get_by_label("ghi chú.txt");
+}
+
 /// Print production ▸ Preflight shows the print-readiness report of the open document, and
 /// Verify runs it again.
 #[test]

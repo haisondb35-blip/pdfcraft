@@ -5967,3 +5967,26 @@ fn undo_never_makes_an_unsaved_document_clean() {
     s.undo(new).unwrap();
     assert!(!s.get(new).unwrap().dirty, "once saved, undo back to the saved state is clean");
 }
+
+/// Edit a PDF ▸ Attach file: the file shows in the Attachments list at once, undo takes it out,
+/// and the saved file carries it; Delete attachment removes it.
+#[test]
+fn attach_file_adds_and_removes_a_document_attachment() {
+    let (mut s, id) = session_with(1);
+    let names = |s: &Session| s.get(id).unwrap().info.attachments.iter().map(|a| a.name.clone()).collect::<Vec<_>>();
+    let data = Arc::new("Xin chào".as_bytes().to_vec());
+    s.apply(id, Edit::AddAttachment { name: "ghi chú.txt".into(), data: data.clone(), description: Some("Ghi chú".into()) }).unwrap();
+    assert_eq!(names(&s), ["ghi chú.txt"]);
+    assert_eq!(s.get(id).unwrap().info.attachments[0].description.as_deref(), Some("Ghi chú"));
+    s.undo(id).unwrap();
+    assert!(names(&s).is_empty(), "undo takes it out");
+    s.redo(id).unwrap();
+    s.apply(id, Edit::AddAttachment { name: "ghi chú.txt".into(), data, description: None }).unwrap();
+    assert_eq!(names(&s), ["ghi chú (2).txt", "ghi chú.txt"]);
+    let saved = s.save_bytes(id).unwrap();
+    let reopened = s.open("saved.pdf", None, saved, None).unwrap();
+    assert_eq!(s.get(reopened).unwrap().info.attachments.len(), 2, "saved with the file");
+    s.apply(id, Edit::RemoveAttachment { name: "ghi chú.txt".into() }).unwrap();
+    assert_eq!(names(&s), ["ghi chú (2).txt"]);
+    assert!(s.apply(id, Edit::RemoveAttachment { name: "missing.txt".into() }).is_err(), "nothing to remove");
+}

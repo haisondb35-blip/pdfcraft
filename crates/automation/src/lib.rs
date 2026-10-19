@@ -332,6 +332,8 @@ impl Automation {
             }
             "page_insert_blank" => self.insert_blank(&a)?,
             "page_insert_file" => self.insert_file(&a)?,
+            "attachment_add" => self.attachment_add(&a)?,
+            "attachment_remove" => self.apply(&a, Edit::RemoveAttachment { name: a.str("name")?.to_string() })?,
             "page_extract" => self.page_extract(&a)?,
             "doc_combine" => self.doc_combine(&a)?,
             "doc_create_multiple" => self.doc_create_multiple(&a)?,
@@ -1550,6 +1552,26 @@ impl Automation {
             return Err(ToolError::InvalidArgs("width and height must be between 1 and 14400 points".into()));
         }
         self.apply(a, Edit::InsertBlankPage { at, width, height })
+    }
+
+    /// Edit a PDF ▸ Attach file: embed `path` in the document, as `name` (default: the file's).
+    fn attachment_add(&mut self, a: &Args) -> Result<Value> {
+        let path = self.resolve(a.str("path")?, false)?;
+        let len = std::fs::metadata(&path).map_err(|e| failed(format!("{}: {e}", path.display())))?.len();
+        if len > pdfcraft_organize::MAX_ATTACHMENT_BYTES as u64 {
+            return Err(failed(format!(
+                "{} is larger than {} MB, the most Attach file embeds",
+                path.display(),
+                pdfcraft_organize::MAX_ATTACHMENT_BYTES / (1024 * 1024)
+            )));
+        }
+        let data = std::fs::read(&path).map_err(|e| failed(format!("{}: {e}", path.display())))?;
+        let name = match a.opt_str("name")? {
+            Some(n) => n.to_string(),
+            None => path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        };
+        let description = a.opt_str("description")?.map(str::to_string);
+        self.apply(a, Edit::AddAttachment { name, data: Arc::new(data), description })
     }
 
     fn insert_file(&mut self, a: &Args) -> Result<Value> {

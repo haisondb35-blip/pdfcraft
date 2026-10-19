@@ -13,6 +13,7 @@
 
 use pdfcraft_cos::{Dict, Document, ObjRef, Object, PdfString, XrefEntry};
 
+mod attach;
 mod boxes;
 mod dedupe;
 mod import;
@@ -24,6 +25,7 @@ mod transition;
 pub mod view;
 mod xmp;
 
+pub use attach::{MAX_ATTACHMENT_BYTES, NewAttachment, add_attachment, remove_attachment};
 pub use boxes::{BoxSpec, PageBox, page_boxes, set_page_box};
 pub use dedupe::dedupe_resources;
 pub use import::{
