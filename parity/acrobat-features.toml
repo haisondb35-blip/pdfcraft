@@ -8317,11 +8317,11 @@ title = "Fix hairlines"
 area = "L"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["prepress.hairlines"]
+tools = ["page_fix_hairlines"]
+evidence = ["crates/edit/src/hairlines.rs::widths_are_measured_on_the_page", "crates/engine/src/tests.rs::fix_hairlines_thickens_thin_lines", "crates/automation/tests/automation.rs::fixing_hairlines_through_tools", "crates/ui-egui/tests/viewer.rs::fix_hairlines_dialog_applies"]
+notes = "Line widths (w) that land on the page under the threshold (default 0.25 pt, measured after the CTM), and widths of 0, become the replacement width, on all pages or the current one; undoable, and refused when nothing was thinner. Still missing: widths set through graphics state dictionaries (/LW), form XObjects, patterns, Type 3 glyphs and annotation appearances."
 
 [[feature]]
 id = "print.flattener-preview"

@@ -1450,6 +1450,8 @@ theme	Appearance	Giao diện
 	Fit to width scrolling	Cuộn vừa chiều rộng
 	Fit visible	Vừa vùng hiển thị
 	Fix hairlines	Sửa các đường siêu mảnh
+	Hairline width threshold	Ngưỡng độ dày nét mảnh
+	Replace with	Thay bằng
 	Fix reading order	Sửa thứ tự đọc
 	Flatten comments	Làm phẳng bình luận
 	Flatten form fields	Làm phẳng trường biểu mẫu

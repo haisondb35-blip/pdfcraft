@@ -529,6 +529,8 @@ key	Space	Mezerník
 	Page information	Informace o stránce
 	Line weight	Tloušťka čáry
 	Fix hairlines	Opravit vlasové čáry
+	Hairline width threshold	Prahová šířka vlasové čáry
+	Replace with	Nahradit hodnotou
 	Measure objects	Měřit objekty
 	Measure	Měření
 	Measuring tool	Nástroj pro měření

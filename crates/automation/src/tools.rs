@@ -895,6 +895,21 @@ pub fn tools() -> Vec<ToolDef> {
             &["doc"],
         )),
         t(
+            "page_fix_hairlines",
+            "Fix hairlines",
+            "Print production ▸ Fix hairlines: every line width that lands on the page under `threshold` points (default 0.25), or is 0 (the device's thinnest line), becomes `width` points (default: the threshold). Widths are measured after the page's transformations. Line widths in graphics state dictionaries, form XObjects, patterns and Type 3 glyphs are not changed. Fails when nothing was thinner. Undoable.",
+        )
+        .cmd("prepress.hairlines")
+        .with(schema(
+            json!({
+                "doc": doc(),
+                "pages": pages("to fix (default: all)"),
+                "threshold": { "type": "number", "exclusiveMinimum": 0, "maximum": 72 },
+                "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 72 },
+            }),
+            &["doc"],
+        )),
+        t(
             "page_set_box",
             "Set page boxes / crop",
             "Set a page box (crop by default; also trim, bleed, art, media) on pages: either margins in points from the media box [left, bottom, right, top], or an absolute rect in points from the top-left of the displayed page. Omit both to reset the box to its default. Undoable.",

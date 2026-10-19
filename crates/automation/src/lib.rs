@@ -426,6 +426,16 @@ impl Automation {
             }
             "page_set_box" => self.page_set_box(&a)?,
             "page_printer_marks" => self.page_printer_marks(&a)?,
+            "page_fix_hairlines" => {
+                let n = self.doc(&a)?.info.pages.len();
+                let pages = match a.opt_ints("pages")? {
+                    Some(_) => self.pages(&a, "pages")?,
+                    None => (0..n).collect(),
+                };
+                let threshold = a.opt_num("threshold")?.unwrap_or(0.25);
+                let replace = a.opt_num("width")?.unwrap_or(threshold);
+                self.apply(&a, Edit::FixHairlines { pages, threshold, replace })?
+            }
             "page_transition_set" => self.page_transition_set(&a)?,
             "doc_create" => self.doc_create(&a)?,
             "xfa_to_static" => self.apply(&a, Edit::XfaToStatic)?,

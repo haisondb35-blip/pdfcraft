@@ -1000,6 +1000,28 @@ fn printer_marks_dialog_marks_the_current_page() {
     assert_eq!(after.get(1), before.get(1), "other pages untouched");
 }
 
+/// Print production ▸ Fix hairlines: the dialog thickens the 0.25 pt printer marks under a
+/// 0.5 pt threshold (one undoable step).
+#[test]
+fn fix_hairlines_dialog_applies() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("prepress.marks"));
+    h.run_steps(2);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    h.state_mut().hairlines_draft.threshold = 0.5;
+    h.state_mut().hairlines_draft.replace = 0.5;
+    assert!(h.state_mut().execute("prepress.hairlines"));
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, Some(Dialog::FixHairlines));
+    h.get_by_label("Hairline width threshold");
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    let id = h.state().active_ids().unwrap().1;
+    assert_eq!(h.state().session.get(id).unwrap().undo_label().map(|l| l.to_string()).as_deref(), Some("Fix hairlines"));
+}
+
 /// Print production ▸ Preflight shows the print-readiness report of the open document, and
 /// Verify runs it again.
 #[test]

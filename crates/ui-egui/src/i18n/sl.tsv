@@ -833,6 +833,8 @@
 	Fit visible	Prilagodi vidnemu
 	Fix	Popravi
 	Fix hairlines	Popravi tanke črte
+	Hairline width threshold	Prag debeline lasne črte
+	Replace with	Zamenjaj z
 	Fix reading order	Popravi vrstni red branja
 	Fixed what could be fixed; 1 problem remains	Popravljeno, kar je bilo mogoče; ostaja 1 težava
 	Fixed what could be fixed; {n} problems remain	Popravljeno, kar je bilo mogoče; preostalih težav: {n}

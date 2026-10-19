@@ -448,6 +448,8 @@
 	Page information	ページ情報
 	Line weight	線幅
 	Fix hairlines	極細線を修正
+	Hairline width threshold	極細線のしきい値
+	Replace with	置き換える太さ
 	Measure objects	オブジェクトを測定
 	Measure	測定
 	Measuring tool	測定ツール

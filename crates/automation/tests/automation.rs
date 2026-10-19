@@ -3238,6 +3238,21 @@ fn printer_marks_through_tools() {
     assert!(a.call("page_printer_marks", &json!({ "doc": doc, "line_width": 0 })).is_err());
 }
 
+/// Print production ▸ Fix hairlines through tools: a text-only page has none; the 0.25 pt printer
+/// marks count as hairlines under a 0.5 pt threshold and are thickened, undoably.
+#[test]
+fn fixing_hairlines_through_tools() {
+    let dir = workdir("hairlines");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    assert!(a.call("page_fix_hairlines", &json!({ "doc": doc })).is_err(), "text only: nothing to fix");
+    ok(&mut a, "page_printer_marks", json!({ "doc": doc, "pages": [1] }));
+    assert!(a.call("page_fix_hairlines", &json!({ "doc": doc, "threshold": 0.2 })).is_err(), "0.25 pt is not under 0.2");
+    let r = ok(&mut a, "page_fix_hairlines", json!({ "doc": doc, "threshold": 0.5, "width": 0.75 }));
+    assert_eq!(r["undo"], "Fix hairlines", "{r}");
+    assert!(a.call("page_fix_hairlines", &json!({ "doc": doc, "threshold": 0.5, "width": 0.25 })).is_err(), "width under the threshold");
+}
+
 #[test]
 fn replacing_pages_through_tools() {
     let dir = workdir("replace");

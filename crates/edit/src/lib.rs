@@ -896,6 +896,8 @@ pub fn marks_present(doc: &Document) -> Vec<MarkKind> {
     added::scan_markers(doc).marks
 }
 
+mod hairlines;
+pub use hairlines::fix_hairlines;
 pub mod objects;
 pub use objects::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget, editable_objects, move_objects};
 

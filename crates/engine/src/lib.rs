@@ -1568,6 +1568,13 @@ pub enum Edit {
     RemoveAttachment {
         name: String,
     },
+    /// Print production ▸ Fix hairlines on `pages`: line widths under `threshold` points (or 0)
+    /// become `replace` points.
+    FixHairlines {
+        pages: Vec<usize>,
+        threshold: f64,
+        replace: f64,
+    },
     /// Print production ▸ Add printer marks on `pages`; `title` starts each page information line.
     AddPrinterMarks {
         pages: Vec<usize>,
@@ -1909,6 +1916,7 @@ pub const EDIT_LABELS: &[&str] = &[
     "Attach file",
     "Delete attachment",
     "Add printer marks",
+    "Fix hairlines",
     "Edit script of {name}",
     "Delete document JavaScript",
     "Edit document JavaScript",
@@ -2044,6 +2052,7 @@ impl Edit {
             Edit::AddAttachment { .. } => Label::of("Attach file"),
             Edit::RemoveAttachment { .. } => Label::of("Delete attachment"),
             Edit::AddPrinterMarks { .. } => Label::of("Add printer marks"),
+            Edit::FixHairlines { .. } => Label::of("Fix hairlines"),
             Edit::SetFieldScript { name, .. } => Label::with("Edit script of {name}", name.as_str()),
             Edit::SetDocumentScript { script: None, .. } => Label::of("Delete document JavaScript"),
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
@@ -2243,6 +2252,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddAttachment { .. }
         | Edit::RemoveAttachment { .. }
         | Edit::AddPrinterMarks { .. }
+        | Edit::FixHairlines { .. }
         | Edit::EditTextLine { .. }
         | Edit::EditTextBlock { .. }
         | Edit::RegisterTextFont { .. }
@@ -2546,6 +2556,11 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
         Edit::AddAttachment { name, data, description } => {
             let new = pdfcraft_organize::NewAttachment { name, data, description: description.as_deref(), date: cx.date.as_deref() };
             pdfcraft_organize::add_attachment(doc, &new)?;
+        }
+        Edit::FixHairlines { pages, threshold, replace } => {
+            if pdfcraft_edit::fix_hairlines(doc, pages, *threshold, *replace)? == 0 {
+                return Err(EditError::Invalid(format!("no lines thinner than {threshold} pt were found on the chosen pages")));
+            }
         }
         Edit::AddPrinterMarks { pages, marks, title } => {
             // "D:20261019103000…" reads as "2026-10-19 10:30" on the page information line.

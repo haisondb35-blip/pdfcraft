@@ -4,13 +4,18 @@ use super::*;
 
 /// A minimal `n`-page document; page `i` shows "Page i+1".
 pub(crate) fn fixture(n: usize) -> Vec<u8> {
+    fixture_with(n, &|i| format!("BT /F1 24 Tf 20 150 Td (Page {}) Tj ET", i + 1))
+}
+
+/// A fixture whose page `i` (0-based) draws `body(i)`.
+pub(crate) fn fixture_with(n: usize, body: &dyn Fn(usize) -> String) -> Vec<u8> {
     let mut objs: Vec<Vec<u8>> = vec![b"<< /Type /Catalog /Pages 2 0 R >>".to_vec()];
     let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", 4 + 2 * i)).collect();
     objs.push(format!("<< /Type /Pages /Kids [{}] /Count {n} /MediaBox [0 0 200 300] >>", kids.join(" ")).into_bytes());
     objs.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec());
     for i in 0..n {
         objs.push(format!("<< /Type /Page /Parent 2 0 R /Contents {} 0 R /Resources << /Font << /F1 3 0 R >> >> >>", 5 + 2 * i).into_bytes());
-        let body = format!("BT /F1 24 Tf 20 150 Td (Page {}) Tj ET", i + 1);
+        let body = body(i);
         objs.push(format!("<< /Length {} >>\nstream\n{body}\nendstream", body.len()).into_bytes());
     }
     let mut out = b"%PDF-1.7\n".to_vec();
@@ -6012,4 +6017,40 @@ fn printer_marks_grow_the_page_and_keep_the_trim() {
     let none = crate::PrinterMarks { crop: false, bleed: false, registration: false, color_bars: false, page_info: false, line_width: 0.25 };
     assert!(s.apply(id, Edit::AddPrinterMarks { pages: vec![0], marks: none, title: String::new() }).is_err(), "no marks chosen");
     assert!(s.apply(id, Edit::AddPrinterMarks { pages: vec![5], marks, title: String::new() }).is_err(), "no such page");
+}
+
+/// Print production ▸ Fix hairlines: lines under the threshold (and 0-width lines) are thickened,
+/// lines already thick enough stay, undo puts them back, and a page with nothing thin refuses.
+#[test]
+fn fix_hairlines_thickens_thin_lines() {
+    let lines = "0.1 w 10 10 m 190 10 l S 0 w 10 20 m 190 20 l S 2 w 10 30 m 190 30 l S";
+    let mut s = Session::new().with_clock(|| 1_700_000_000);
+    let id = s.open("lines.pdf", None, Arc::new(fixture_with(2, &|i| if i == 0 { lines.into() } else { "1 w 0 0 m 9 9 l S".into() })), None).unwrap();
+    let widths = |s: &Session| -> Vec<f64> {
+        let doc = s.get(id).unwrap();
+        let cos = &doc.editor.as_ref().unwrap().cos;
+        let page = pdfcraft_model::pages(cos).into_iter().next().unwrap();
+        let mut data = Vec::new();
+        let contents = cos.resolve(page.dict.get(b"Contents").unwrap());
+        let list = match &*contents {
+            pdfcraft_cos::Object::Array(a) => a.clone(),
+            _ => vec![page.dict.get(b"Contents").unwrap().clone()],
+        };
+        for c in list {
+            if let pdfcraft_cos::Object::Stream(st) = &*cos.resolve(&c) {
+                data.extend(st.decoded().unwrap());
+                data.push(b' ');
+            }
+        }
+        let text = String::from_utf8_lossy(&data).into_owned();
+        let tokens: Vec<&str> = text.split_whitespace().collect();
+        tokens.windows(2).filter(|t| t[1] == "w").map(|t| t[0].parse().unwrap()).collect()
+    };
+    assert_eq!(widths(&s), [0.1, 0.0, 2.0]);
+    s.apply(id, Edit::FixHairlines { pages: vec![0], threshold: 0.25, replace: 0.5 }).unwrap();
+    assert_eq!(widths(&s), [0.5, 0.5, 2.0]);
+    s.undo(id).unwrap();
+    assert_eq!(widths(&s), [0.1, 0.0, 2.0]);
+    assert!(s.apply(id, Edit::FixHairlines { pages: vec![1], threshold: 0.25, replace: 0.25 }).is_err(), "nothing thin on page 2");
+    assert!(s.apply(id, Edit::FixHairlines { pages: vec![0], threshold: 0.5, replace: 0.25 }).is_err(), "replacement under the threshold");
 }

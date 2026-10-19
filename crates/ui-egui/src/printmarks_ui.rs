@@ -80,6 +80,75 @@ impl PdfCraftApp {
     }
 }
 
+/// Print production ▸ Fix hairlines: the dialog's choices (points).
+#[derive(Clone, Debug, PartialEq)]
+pub struct HairlinesDraft {
+    pub threshold: f64,
+    pub replace: f64,
+    pub all_pages: bool,
+}
+
+impl Default for HairlinesDraft {
+    fn default() -> Self {
+        HairlinesDraft { threshold: 0.25, replace: 0.25, all_pages: true }
+    }
+}
+
+impl HairlinesDraft {
+    pub fn edit(&self, current: usize, count: usize) -> Edit {
+        let pages = if self.all_pages { (0..count).collect() } else { vec![current.min(count.saturating_sub(1))] };
+        Edit::FixHairlines { pages, threshold: self.threshold, replace: self.replace.max(self.threshold) }
+    }
+}
+
+/// The Fix hairlines dialog body; returns (apply, cancel).
+pub(crate) fn hairlines_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, _t: &Tokens) -> (bool, bool) {
+    ui.label(egui::RichText::new(tl!("Fix hairlines")).font(theme::semibold(18.0)));
+    ui.add_space(8.0);
+    let d = &mut app.hairlines_draft;
+    egui::Grid::new("hairlines-grid").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+        ui.label(tl!("Hairline width threshold"));
+        ui.add(egui::DragValue::new(&mut d.threshold).range(0.01..=72.0).speed(0.01).suffix(" pt"));
+        ui.end_row();
+        ui.label(tl!("Replace with"));
+        ui.add(egui::DragValue::new(&mut d.replace).range(0.01..=72.0).speed(0.01).suffix(" pt"));
+        ui.end_row();
+    });
+    if d.replace < d.threshold {
+        d.replace = d.threshold;
+    }
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        if ui.add(widgets::radio(d.all_pages, tl!("All pages"))).clicked() {
+            d.all_pages = true;
+        }
+        if ui.add(widgets::radio(!d.all_pages, tl!("Current page"))).clicked() {
+            d.all_pages = false;
+        }
+    });
+    ui.add_space(12.0);
+    let (mut apply, mut cancel) = (false, false);
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+            apply = true;
+        }
+        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            cancel = true;
+        }
+    });
+    (apply, cancel)
+}
+
+impl PdfCraftApp {
+    /// Apply the Fix hairlines dialog to the active document.
+    pub(crate) fn apply_fix_hairlines(&mut self) {
+        let Some((i, id)) = self.active_ids() else { return };
+        let Some(doc) = self.session.get(id) else { return };
+        let edit = self.hairlines_draft.edit(self.views[i].current, doc.info.pages.len());
+        self.apply_edit(edit);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
