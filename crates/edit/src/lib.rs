@@ -896,6 +896,8 @@ pub fn marks_present(doc: &Document) -> Vec<MarkKind> {
     added::scan_markers(doc).marks
 }
 
+mod colors;
+pub use colors::{ColorTarget, cmyk_to_gray, convert_colors, rgb_to_cmyk, rgb_to_gray};
 mod hairlines;
 pub use hairlines::fix_hairlines;
 pub mod objects;

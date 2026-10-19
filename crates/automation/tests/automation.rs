@@ -3253,6 +3253,20 @@ fn fixing_hairlines_through_tools() {
     assert!(a.call("page_fix_hairlines", &json!({ "doc": doc, "threshold": 0.5, "width": 0.25 })).is_err(), "width under the threshold");
 }
 
+/// Print production ▸ Convert colors through tools: a text-only page has nothing to convert; the
+/// CMYK printer marks become grey; an unknown target is refused.
+#[test]
+fn converting_colors_through_tools() {
+    let dir = workdir("convert-colors");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    assert!(a.call("page_convert_colors", &json!({ "doc": doc, "to": "gray" })).is_err(), "nothing to convert");
+    ok(&mut a, "page_printer_marks", json!({ "doc": doc, "pages": [1] }));
+    let r = ok(&mut a, "page_convert_colors", json!({ "doc": doc, "to": "gray", "pages": [1] }));
+    assert_eq!(r["undo"], "Convert colors", "{r}");
+    assert!(a.call("page_convert_colors", &json!({ "doc": doc, "to": "lab" })).is_err());
+}
+
 #[test]
 fn replacing_pages_through_tools() {
     let dir = workdir("replace");

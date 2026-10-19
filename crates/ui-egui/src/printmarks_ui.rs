@@ -149,6 +149,73 @@ impl PdfCraftApp {
     }
 }
 
+/// Print production ▸ Convert colors: the dialog's choices.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ColorsDraft {
+    pub target: pdfcraft_engine::ColorTarget,
+    pub all_pages: bool,
+}
+
+impl Default for ColorsDraft {
+    fn default() -> Self {
+        ColorsDraft { target: pdfcraft_engine::ColorTarget::Gray, all_pages: true }
+    }
+}
+
+impl ColorsDraft {
+    pub fn edit(&self, current: usize, count: usize) -> Edit {
+        let pages = if self.all_pages { (0..count).collect() } else { vec![current.min(count.saturating_sub(1))] };
+        Edit::ConvertColors { pages, target: self.target }
+    }
+}
+
+/// The Convert colors dialog body; returns (apply, cancel).
+pub(crate) fn colors_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, _t: &Tokens) -> (bool, bool) {
+    use pdfcraft_engine::ColorTarget;
+    ui.label(egui::RichText::new(tl!("Convert colors")).font(theme::semibold(18.0)));
+    ui.add_space(8.0);
+    let d = &mut app.colors_draft;
+    ui.label(tl!("Convert to"));
+    ui.horizontal(|ui| {
+        if ui.add(widgets::radio(d.target == ColorTarget::Gray, tl!("Grayscale"))).clicked() {
+            d.target = ColorTarget::Gray;
+        }
+        if ui.add(widgets::radio(d.target == ColorTarget::Cmyk, "CMYK")).clicked() {
+            d.target = ColorTarget::Cmyk;
+        }
+    });
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        if ui.add(widgets::radio(d.all_pages, tl!("All pages"))).clicked() {
+            d.all_pages = true;
+        }
+        if ui.add(widgets::radio(!d.all_pages, tl!("Current page"))).clicked() {
+            d.all_pages = false;
+        }
+    });
+    ui.add_space(12.0);
+    let (mut apply, mut cancel) = (false, false);
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+            apply = true;
+        }
+        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            cancel = true;
+        }
+    });
+    (apply, cancel)
+}
+
+impl PdfCraftApp {
+    /// Apply the Convert colors dialog to the active document.
+    pub(crate) fn apply_convert_colors(&mut self) {
+        let Some((i, id)) = self.active_ids() else { return };
+        let Some(doc) = self.session.get(id) else { return };
+        let edit = self.colors_draft.edit(self.views[i].current, doc.info.pages.len());
+        self.apply_edit(edit);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

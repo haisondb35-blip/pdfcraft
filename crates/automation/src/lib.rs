@@ -426,6 +426,17 @@ impl Automation {
             }
             "page_set_box" => self.page_set_box(&a)?,
             "page_printer_marks" => self.page_printer_marks(&a)?,
+            "page_convert_colors" => {
+                let n = self.doc(&a)?.info.pages.len();
+                let pages = match a.opt_ints("pages")? {
+                    Some(_) => self.pages(&a, "pages")?,
+                    None => (0..n).collect(),
+                };
+                let target = a.str("to")?;
+                let target = pdfcraft_engine::ColorTarget::from_key(target)
+                    .ok_or_else(|| ToolError::InvalidArgs(format!("to must be \"gray\" or \"cmyk\", not {target:?}")))?;
+                self.apply(&a, Edit::ConvertColors { pages, target })?
+            }
             "page_fix_hairlines" => {
                 let n = self.doc(&a)?.info.pages.len();
                 let pages = match a.opt_ints("pages")? {

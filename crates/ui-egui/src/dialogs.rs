@@ -56,6 +56,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut boxes_now = false;
     let mut printer_marks_now = false;
     let mut hairlines_now = false;
+    let mut colors_now = false;
     let mut marks_now = false;
     let mut export_now = false;
     let mut props_now = false;
@@ -1009,6 +1010,13 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = apply || cancel;
                 return;
             }
+            Dialog::ConvertColors => {
+                ui.set_width(380.0);
+                let (apply, cancel) = crate::printmarks_ui::colors_body(ui, app, &t);
+                colors_now = apply;
+                close = apply || cancel;
+                return;
+            }
             Dialog::FixHairlines => {
                 ui.set_width(380.0);
                 let (apply, cancel) = crate::printmarks_ui::hairlines_body(ui, app, &t);
@@ -1396,6 +1404,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if hairlines_now {
         app.apply_fix_hairlines();
+    }
+    if colors_now {
+        app.apply_convert_colors();
     }
     if boxes_now && let Some((i, id)) = app.active_ids() {
         let count = app.session.get(id).map(|d| d.info.pages.len()).unwrap_or(0);

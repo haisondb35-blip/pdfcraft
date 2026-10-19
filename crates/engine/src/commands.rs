@@ -375,6 +375,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("edit.attach", "Attach file", None, None, Modification, "paperclip"),
     c("prepress.marks", "Add printer marks", None, None, Modification, "ruler"),
     c("prepress.hairlines", "Fix hairlines", None, None, Modification, "minus"),
+    c("prepress.convert_colors", "Convert colors", None, None, Modification, "palette"),
     c("page.insert", "Insert pages from file…", PAGES, None, Assembly, "file-input"),
     c("page.insert_scan", "Insert pages from scanner…", PAGES, None, Assembly, "scan"),
     c("page.replace", "Replace pages…", PAGES, None, Assembly, "replace"),

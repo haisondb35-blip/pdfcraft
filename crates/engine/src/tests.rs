@@ -6054,3 +6054,36 @@ fn fix_hairlines_thickens_thin_lines() {
     assert!(s.apply(id, Edit::FixHairlines { pages: vec![1], threshold: 0.25, replace: 0.25 }).is_err(), "nothing thin on page 2");
     assert!(s.apply(id, Edit::FixHairlines { pages: vec![0], threshold: 0.5, replace: 0.25 }).is_err(), "replacement under the threshold");
 }
+
+/// Print production ▸ Convert colors: device RGB colours on the page become grey (or CMYK), undo
+/// restores them, and a page with nothing to convert refuses.
+#[test]
+fn convert_colors_rewrites_device_colours() {
+    let body = "1 0 0 rg 0 0 50 50 re f 0 0 1 RG 0 0 m 50 50 l S";
+    let mut s = Session::new().with_clock(|| 1_700_000_000);
+    let id = s.open("colours.pdf", None, Arc::new(fixture_with(2, &|i| if i == 0 { body.into() } else { "0 g 0 0 9 9 re f".into() })), None).unwrap();
+    let ops = |s: &Session| -> String {
+        let doc = s.get(id).unwrap();
+        let cos = &doc.editor.as_ref().unwrap().cos;
+        let page = pdfcraft_model::pages(cos).into_iter().next().unwrap();
+        let mut data = Vec::new();
+        let list = match &*cos.resolve(page.dict.get(b"Contents").unwrap()) {
+            pdfcraft_cos::Object::Array(a) => a.clone(),
+            _ => vec![page.dict.get(b"Contents").unwrap().clone()],
+        };
+        for c in list {
+            if let pdfcraft_cos::Object::Stream(st) = &*cos.resolve(&c) {
+                data.extend(st.decoded().unwrap());
+                data.push(b' ');
+            }
+        }
+        String::from_utf8_lossy(&data).split_whitespace().collect::<Vec<_>>().join(" ")
+    };
+    s.apply(id, Edit::ConvertColors { pages: vec![0], target: crate::ColorTarget::Gray }).unwrap();
+    assert!(ops(&s).starts_with("0.3 g 0 0 50 50 re f 0.11 G"), "{}", ops(&s));
+    s.undo(id).unwrap();
+    assert!(ops(&s).starts_with("1 0 0 rg"), "{}", ops(&s));
+    s.apply(id, Edit::ConvertColors { pages: vec![0], target: crate::ColorTarget::Cmyk }).unwrap();
+    assert!(ops(&s).starts_with("0 1 1 0 k"), "{}", ops(&s));
+    assert!(s.apply(id, Edit::ConvertColors { pages: vec![1], target: crate::ColorTarget::Gray }).is_err(), "page 2 is grey already");
+}

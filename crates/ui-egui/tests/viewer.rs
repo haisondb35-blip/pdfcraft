@@ -1022,6 +1022,27 @@ fn fix_hairlines_dialog_applies() {
     assert_eq!(h.state().session.get(id).unwrap().undo_label().map(|l| l.to_string()).as_deref(), Some("Fix hairlines"));
 }
 
+/// Print production ▸ Convert colors: the dialog turns the CMYK printer marks grey (one undoable
+/// step).
+#[test]
+fn convert_colors_dialog_applies() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("prepress.marks"));
+    h.run_steps(2);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert!(h.state_mut().execute("prepress.convert_colors"));
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, Some(Dialog::ConvertColors));
+    h.get_by_label("Grayscale").click();
+    h.run_steps(1);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    let id = h.state().active_ids().unwrap().1;
+    assert_eq!(h.state().session.get(id).unwrap().undo_label().map(|l| l.to_string()).as_deref(), Some("Convert colors"));
+}
+
 /// Print production ▸ Preflight shows the print-readiness report of the open document, and
 /// Verify runs it again.
 #[test]

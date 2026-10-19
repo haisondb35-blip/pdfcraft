@@ -895,6 +895,20 @@ pub fn tools() -> Vec<ToolDef> {
             &["doc"],
         )),
         t(
+            "page_convert_colors",
+            "Convert colors",
+            "Print production ▸ Convert colors: the page colours set with device colour operators (grey, RGB, CMYK) and the RGB images drawn on the pages become grayscale (`to`: \"gray\") or CMYK (\"cmyk\"), with simple device formulas (luminance 0.3/0.59/0.11; CMYK with full grey-component replacement), not an ICC conversion. ICC-based and spot colour spaces, shadings, forms, patterns and annotations are not changed. Fails when nothing was converted. Undoable.",
+        )
+        .cmd("prepress.convert_colors")
+        .with(schema(
+            json!({
+                "doc": doc(),
+                "pages": pages("to convert (default: all)"),
+                "to": { "type": "string", "enum": ["gray", "cmyk"] },
+            }),
+            &["doc", "to"],
+        )),
+        t(
             "page_fix_hairlines",
             "Fix hairlines",
             "Print production ▸ Fix hairlines: every line width that lands on the page under `threshold` points (default 0.25), or is 0 (the device's thinnest line), becomes `width` points (default: the threshold). Widths are measured after the page's transformations. Line widths in graphics state dictionaries, form XObjects, patterns and Type 3 glyphs are not changed. Fails when nothing was thinner. Undoable.",

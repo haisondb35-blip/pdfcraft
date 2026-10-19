@@ -364,6 +364,8 @@ pub enum Dialog {
     PrinterMarks,
     /// Print production ▸ Fix hairlines.
     FixHairlines,
+    /// Print production ▸ Convert colors.
+    ConvertColors,
     /// Signatures ▸ Show certificate.
     CertificateViewer,
 }
@@ -795,6 +797,8 @@ pub struct PdfCraftApp {
     pub printer_marks_draft: printmarks_ui::MarksDraft,
     /// Print production ▸ Fix hairlines: the dialog's choices.
     pub hairlines_draft: printmarks_ui::HairlinesDraft,
+    /// Print production ▸ Convert colors: the dialog's choices.
+    pub colors_draft: printmarks_ui::ColorsDraft,
     /// Header & footer / watermark / background dialog state.
     pub marks_draft: marks_ui::MarksDraft,
     /// Export dialog settings.
@@ -1090,6 +1094,7 @@ impl PdfCraftApp {
             boxes_draft: Default::default(),
             printer_marks_draft: Default::default(),
             hairlines_draft: Default::default(),
+            colors_draft: Default::default(),
             marks_draft: Default::default(),
             export_draft: Default::default(),
             export_status: None,
@@ -2626,6 +2631,7 @@ impl PdfCraftApp {
                     "page-boxes" => Some(Dialog::PageBoxes),
                     "printer-marks" => Some(Dialog::PrinterMarks),
                     "fix-hairlines" => Some(Dialog::FixHairlines),
+                    "convert-colors" => Some(Dialog::ConvertColors),
                     "header-footer" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter)),
                     "watermark" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Watermark)),
                     "background" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Background)),

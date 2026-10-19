@@ -8269,11 +8269,11 @@ title = "Convert colours"
 area = "L"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["prepress.convert_colors"]
+tools = ["page_convert_colors"]
+evidence = ["crates/edit/src/colors.rs::device_colours_become_grey", "crates/edit/src/colors.rs::device_colours_become_cmyk", "crates/optimize/tests/optimize.rs::convert_colors_turns_rgb_images_grey_or_cmyk", "crates/engine/src/tests.rs::convert_colors_rewrites_device_colours", "crates/automation/tests/automation.rs::converting_colors_through_tools", "crates/ui-egui/tests/viewer.rs::convert_colors_dialog_applies"]
+notes = "Converts page colours set with device colour operators (g/rg/k and device cs + sc) and 8-bit RGB images drawn on the page to grayscale or CMYK, on all pages or the current one; undoable, refused when nothing changed. Uses simple device formulas (luminance 0.3/0.59/0.11; CMYK with full grey-component replacement), not ICC colour management. Still missing: ICC-based, Lab and spot colour spaces, shadings, form XObjects, patterns, annotations, images under 8 bits, conversion profiles and the output intent, and preserving black."
 
 [[feature]]
 id = "print.ink-manager"

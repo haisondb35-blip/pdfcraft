@@ -65,6 +65,7 @@ pub use pdfcraft_forms::{
 };
 
 pub use pdfcraft_a11y as a11y;
+pub use pdfcraft_edit::ColorTarget;
 pub use pdfcraft_edit::{BlockStyle, PageImage, RangeStyle, TextBlock, TextLine, first_undrawable};
 pub use pdfcraft_measure as measure;
 pub use pdfcraft_xfa::Report as XfaLayout;
@@ -1568,6 +1569,11 @@ pub enum Edit {
     RemoveAttachment {
         name: String,
     },
+    /// Print production ▸ Convert colors on `pages`: device colours and RGB images to `target`.
+    ConvertColors {
+        pages: Vec<usize>,
+        target: ColorTarget,
+    },
     /// Print production ▸ Fix hairlines on `pages`: line widths under `threshold` points (or 0)
     /// become `replace` points.
     FixHairlines {
@@ -1917,6 +1923,7 @@ pub const EDIT_LABELS: &[&str] = &[
     "Delete attachment",
     "Add printer marks",
     "Fix hairlines",
+    "Convert colors",
     "Edit script of {name}",
     "Delete document JavaScript",
     "Edit document JavaScript",
@@ -2053,6 +2060,7 @@ impl Edit {
             Edit::RemoveAttachment { .. } => Label::of("Delete attachment"),
             Edit::AddPrinterMarks { .. } => Label::of("Add printer marks"),
             Edit::FixHairlines { .. } => Label::of("Fix hairlines"),
+            Edit::ConvertColors { .. } => Label::of("Convert colors"),
             Edit::SetFieldScript { name, .. } => Label::with("Edit script of {name}", name.as_str()),
             Edit::SetDocumentScript { script: None, .. } => Label::of("Delete document JavaScript"),
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
@@ -2253,6 +2261,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::RemoveAttachment { .. }
         | Edit::AddPrinterMarks { .. }
         | Edit::FixHairlines { .. }
+        | Edit::ConvertColors { .. }
         | Edit::EditTextLine { .. }
         | Edit::EditTextBlock { .. }
         | Edit::RegisterTextFont { .. }
@@ -2556,6 +2565,15 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
         Edit::AddAttachment { name, data, description } => {
             let new = pdfcraft_organize::NewAttachment { name, data, description: description.as_deref(), date: cx.date.as_deref() };
             pdfcraft_organize::add_attachment(doc, &new)?;
+        }
+        Edit::ConvertColors { pages, target } => {
+            let colours = pdfcraft_edit::convert_colors(doc, pages, *target)?;
+            let images = optimize::convert_page_images(doc, pages, *target == ColorTarget::Gray).map_err(|e| EditError::Invalid(e.to_string()))?;
+            if colours == 0 && images == 0 {
+                return Err(EditError::Invalid(
+                    "nothing to convert: the chosen pages have no device colours or RGB images outside the target".into(),
+                ));
+            }
         }
         Edit::FixHairlines { pages, threshold, replace } => {
             if pdfcraft_edit::fix_hairlines(doc, pages, *threshold, *replace)? == 0 {
