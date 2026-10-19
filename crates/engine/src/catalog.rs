@@ -242,8 +242,8 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                     item("Oval", "circle", "comment.circle", Ready),
                     item("Line", "minus", "comment.line", Ready),
                     item("Arrow", "move-right", "comment.arrow", Ready),
-                    item("Cloud", "cloud", "comment.cloud", Planned("M5")),
-                    item("Stamp", "stamp", "comment.stamp", Planned("M5")),
+                    item("Cloud", "cloud", "comment.cloud", Ready),
+                    item("Stamp", "stamp", "comment.stamp", Ready),
                 ],
             },
             ToolSection {
@@ -334,7 +334,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             items: &[
                 item("Reduce file size", "file-down", "optimize.reduce", Ready),
                 item("Advanced optimization", "settings-2", "optimize.advanced", Ready),
-                item("Audit space usage", "gauge", "optimize.audit", Planned("M11")),
+                item("Audit space usage", "gauge", "optimize.audit", Ready),
             ],
         }],
     },
@@ -414,7 +414,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             title: "Print production",
             items: &[
                 item("Output preview", "layers", "prepress.output_preview", Planned("M11")),
-                item("Preflight", "file-check", "preflight.run", Planned("M11")),
+                item("Preflight", "file-check", "preflight.run", Ready),
                 item("Convert colors", "palette", "prepress.convert_colors", Planned("M11")),
                 item("Set page boxes", "square-dashed-mouse-pointer", "page.boxes", Ready),
                 item("Add printer marks", "ruler", "prepress.marks", Planned("M11")),
@@ -505,7 +505,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                 item("Save as PDF/A", "file-check", "standards.pdfa", Ready),
                 item("Save as PDF/X", "file-check", "standards.pdfx", Planned("M11")),
                 item("Save as PDF/UA", "accessibility", "standards.pdfua", Planned("M11")),
-                item("Preflight", "file-check", "preflight.run", Planned("M11")),
+                item("Preflight", "file-check", "preflight.run", Ready),
             ],
         }],
     },
@@ -528,8 +528,8 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         sections: &[ToolSection {
             title: "JavaScript",
             items: &[
-                item("Console", "braces", "js.console", Planned("M6")),
-                item("Document JavaScripts", "file-text", "js.document", Planned("M6")),
+                item("Console", "braces", "tools.js_console", Ready),
+                item("Document JavaScripts", "file-text", "tools.document_js", Ready),
                 item("Document actions", "list-checks", "js.actions", Planned("M6")),
             ],
         }],

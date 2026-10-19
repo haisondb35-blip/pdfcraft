@@ -7594,7 +7594,7 @@ area = "K"
 tier = "P1"
 milestone = "M11"
 status = "shipped"
-commands = ["optimize.advanced"]
+commands = ["optimize.advanced", "optimize.audit"]
 tools = ["doc_audit_space"]
 evidence = ["crates/optimize/tests/optimize.rs::space_audit_shares_the_file_out_by_kind", "crates/optimize/tests/optimize.rs::space_audit_counts_what_fields_and_comments_draw_with_by_kind", "crates/optimize/tests/optimize.rs::space_audit_survives_deeply_nested_forms", "crates/automation/tests/automation.rs::auditing_space_through_tools", "crates/ui-egui/tests/viewer.rs::optimizer_audits_space_usage", "crates/ui-egui/tests/viewer.rs::space_audit_numbers_line_up_under_their_headers"]
 notes = "PDF Optimizer ▸ Audit space usage: what the file's bytes are spent on now (not what optimizing would save), in 16 categories (images, content streams, fonts, X Object forms, structure, bookmarks, thumbnails, comments, forms, named destinations, colour spaces, shadings, patterns, graphics states, embedded files, overhead) with bytes and percentages. Resources are counted by kind wherever they are used, so the fonts and images form fields and comments draw with count as fonts and images. Still missing: sizes are each object as it would be written uncompressed, so objects packed in compressed object streams count larger than they take on disk (overhead, the rest of the file, shrinks to match)"
@@ -7629,11 +7629,11 @@ title = "Preflight analysis"
 area = "K"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["preflight.run"]
+tools = ["print_readiness"]
+evidence = ["crates/automation/tests/automation.rs::print_readiness_through_tools", "crates/ui-egui/tests/viewer.rs::preflight_shows_the_print_readiness_report"]
+notes = "Print production ▸ Preflight shows the print-readiness report (verification only): effective image resolution where each image is drawn, page boxes and bleed past the trim, output intents, fonts not embedded, and the PDF/A-2b structural result; failures and warnings are coloured. Still missing: PDF/X and other profiles, overprint, total area coverage, spot colours, transparency, fixups, and a report in the interface language (the measurements read in English)."
 
 [[feature]]
 id = "optimize.preflight-fix"

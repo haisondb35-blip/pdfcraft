@@ -723,7 +723,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = ok || cancel;
                 if std::mem::take(&mut app.optimize_draft.audit) {
                     app.space_audit = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.audit_space()).unwrap_or_default();
-                    next = Dialog::AuditSpace;
+                    next = Dialog::AuditSpace(true);
                 }
                 return;
             }
@@ -745,10 +745,19 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 }
                 return;
             }
-            Dialog::AuditSpace => {
+            Dialog::AuditSpace(back) => {
                 if crate::optimize_ui::audit_body(ui, &app.space_audit, &t) {
-                    next = Dialog::Optimize;
+                    if back {
+                        next = Dialog::Optimize;
+                    } else {
+                        close = true;
+                    }
                 }
+                return;
+            }
+            Dialog::Preflight => {
+                ui.set_width(640.0);
+                close = crate::standards_ui::preflight_body(ui, app, &t);
                 return;
             }
             Dialog::Sign => {

@@ -355,8 +355,10 @@ pub enum Dialog {
     CreateStamp,
     /// Prepare for accessibility ▸ Add alternate text.
     AltText,
-    /// PDF Optimizer ▸ Audit space usage (then back to the optimizer).
-    AuditSpace,
+    /// Audit space usage: from the PDF Optimizer (`true`, back to it after) or All tools.
+    AuditSpace(bool),
+    /// Print production ▸ Preflight: the print-readiness report.
+    Preflight,
     /// Signatures ▸ Show certificate.
     CertificateViewer,
 }
@@ -703,6 +705,8 @@ pub struct PdfCraftApp {
     pub cert_viewer: Option<sign_ui::CertViewer>,
     /// The last space audit.
     pub space_audit: Vec<pdfcraft_engine::optimize::SpaceUse>,
+    /// The last Preflight report (print readiness, verification only).
+    pub preflight_report: String,
     /// Combine files: the files staged so far.
     pub combine_draft: Vec<combine_ui::CombineFile>,
     /// The combine list's field-name conflict preview (computed once per list, never saved).
@@ -1031,6 +1035,7 @@ impl PdfCraftApp {
             os_key_store_ids: false,
             cert_viewer: None,
             space_audit: Vec::new(),
+            preflight_report: String::new(),
             combine_draft: Vec::new(),
             combine_conflicts: Default::default(),
             combine_tab: Default::default(),
@@ -2623,6 +2628,10 @@ impl PdfCraftApp {
                     "compare-files" => Some(Dialog::CompareFiles),
                     "action-wizard" => Some(Dialog::ActionWizard),
                     "pdfa" => Some(Dialog::PdfA),
+                    "preflight" => {
+                        self.preflight_check();
+                        Some(Dialog::Preflight)
+                    }
                     "signature" => Some(Dialog::Signature),
                     "optimize" => Some(Dialog::Optimize),
                     "sign" | "certify" => {

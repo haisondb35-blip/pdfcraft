@@ -320,11 +320,9 @@ impl Assistant {
         self.input.clear();
         self.last_note = None;
         self.push(Role::User, prompt.clone());
-        let launched = self
-            .prepare(ctx)
-            .and_then(|(work_dir, mcp_config, server)| {
-                (self.launcher)(Launch { prompt, session: self.session.clone(), mcp_config, work_dir, provider: self.provider, server })
-            });
+        let launched = self.prepare(ctx).and_then(|(work_dir, mcp_config, server)| {
+            (self.launcher)(Launch { prompt, session: self.session.clone(), mcp_config, work_dir, provider: self.provider, server })
+        });
         match launched {
             Ok(r) => self.running = Some(r),
             Err(e) => self.push(Role::Error, e),
@@ -518,9 +516,7 @@ pub fn mcp_server(cli: &Path, port: u16, token: &str) -> McpServer {
 
 /// What Codex is told before the first question (it has no separate system prompt).
 pub fn codex_instructions() -> String {
-    format!(
-        "{SYSTEM_PROMPT} Use only the pdfcraft tools: don't run shell commands or read or write files on the computer."
-    )
+    format!("{SYSTEM_PROMPT} Use only the pdfcraft tools: don't run shell commands or read or write files on the computer.")
 }
 
 /// A TOML basic string, for Codex's `-c key=value` settings.
@@ -541,8 +537,10 @@ fn toml_str(s: &str) -> String {
 /// Codex's command-line arguments for a question (the prompt goes in on stdin, `-`): JSON
 /// events, a read-only sandbox that never asks for approval, and the pdfcraft server.
 pub fn codex_args(l: &Launch) -> Vec<String> {
-    let mut a: Vec<String> =
-        ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-c", "approval_policy=\"never\""].into_iter().map(String::from).collect();
+    let mut a: Vec<String> = ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only", "-c", "approval_policy=\"never\""]
+        .into_iter()
+        .map(String::from)
+        .collect();
     let server = &l.server;
     a.push("-c".into());
     a.push(format!("mcp_servers.pdfcraft.command={}", toml_str(&server.command.to_string_lossy())));
@@ -1059,7 +1057,8 @@ fn read_events(
 
 /// The pane's contents (inside the task pane frame).
 /// What AI assistant ▸ Summarize asks.
-pub const SUMMARIZE: &str = "Summarize the open PDF: what it is, who it is from and to, and its key points. Write the summary in the document's language.";
+pub const SUMMARIZE: &str =
+    "Summarize the open PDF: what it is, who it is from and to, and its key points. Write the summary in the document's language.";
 
 /// What AI assistant ▸ Translate starts the question with; the reader types the language.
 pub const TRANSLATE: &str = "Translate the open PDF into ";

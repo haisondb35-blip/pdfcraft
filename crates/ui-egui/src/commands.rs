@@ -521,6 +521,14 @@ impl PdfCraftApp {
             }
             "sign.panel" => self.choose_right_panel(Some(RightPanel::Signatures)),
             "optimize.advanced" => self.dialog = Some(Dialog::Optimize),
+            "optimize.audit" => {
+                self.space_audit = self.active_ids().and_then(|(_, id)| self.session.get(id)).map(|d| d.audit_space()).unwrap_or_default();
+                self.dialog = Some(Dialog::AuditSpace(false));
+            }
+            "preflight.run" => {
+                self.preflight_check();
+                self.dialog = Some(Dialog::Preflight);
+            }
             "view.fit_visible" => {
                 if let Some(i) = self.active
                     && let Err(e) = self.fit_visible(i)
