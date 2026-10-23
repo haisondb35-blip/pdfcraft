@@ -199,7 +199,7 @@ pub fn convert_colors(doc: &mut Document, pages: &[usize], target: ColorTarget) 
     let mut changed = 0_usize;
     for &p in pages {
         let page = crate::text::page_dict(doc, p)?;
-        let streams = crate::text::content_streams(doc, &page.dict);
+        let streams = crate::text::content_streams(doc, &page.dict)?;
         if streams.is_empty() {
             continue;
         }
