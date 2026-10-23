@@ -134,6 +134,21 @@ pub fn document_japanese_font_for_style(serif: bool, bold: bool) -> Option<&'sta
 /// (the face [`document_japanese_font_for_style`] returns), then the others. Not every face has
 /// every glyph (their coverage of e.g. Cyrillic differs), so a caller can move on to the next one.
 /// Empty without craft-fonts.
+/// Inter, the bundled interface face (`assets/fonts`, OFL), as a fallback face for replacement
+/// text: Vietnamese and the other Latin, Greek and Cyrillic letters the Japanese faces lack, and
+/// every such letter in a build without craft-fonts. Always present.
+pub static INTER_FALLBACK: CraftFont =
+    CraftFont { family: "Inter", style: "Regular", scripts: &["Latn", "Grek", "Cyrl"], bytes: crate::INTER_REGULAR };
+
+/// [`INTER_FALLBACK`] for bold text (Inter SemiBold).
+pub static INTER_FALLBACK_BOLD: CraftFont =
+    CraftFont { family: "Inter", style: "SemiBold", scripts: &["Latn", "Grek", "Cyrl"], bytes: crate::unicode::INTER_SEMIBOLD };
+
+/// The Inter fallback face for a weight.
+pub fn document_inter_font(bold: bool) -> &'static CraftFont {
+    if bold { &INTER_FALLBACK_BOLD } else { &INTER_FALLBACK }
+}
+
 pub fn document_japanese_fonts_for_style(serif: bool, bold: bool) -> Vec<&'static CraftFont> {
     document_faces(CRAFT_FONTS, serif, bold)
 }

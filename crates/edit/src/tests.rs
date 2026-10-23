@@ -4284,18 +4284,14 @@ fn a_new_character_comes_from_the_source_fonts_own_embedded_program() {
 }
 
 #[test]
-fn a_subset_program_is_not_trusted_for_new_characters_and_the_error_names_the_character() {
+fn a_subset_program_is_not_trusted_for_new_characters_and_the_fallback_draws_them() {
     let mut doc = embedded_program_page("BT /F1 12 Tf 72 700 Td (Stable text) Tj ET", "ABCDEF+Inter-Regular");
     let before = page_content_bytes(&doc, 0);
     let result = text::rewrite_block(&mut doc, 0, 0, Some("Stable tőxt"), &text::BlockStyle::default());
-    if pdfcraft_fonts::document_japanese_font().is_some() {
-        eprintln!("built with craft-fonts: the fallback font draws the new character");
-        assert!(result.is_ok(), "{result:?}");
-        return;
-    }
-    let Err(EditError::Invalid(msg)) = result else { panic!("expected a clear error, got {result:?}") };
-    assert!(msg.contains("ő (U+0151)") && msg.contains("Load font") && !msg.contains("Japanese"), "{msg}");
-    assert_eq!(page_content_bytes(&doc, 0), before);
+    // The subset can't draw ő, so the fallback draws it: Inter, which every build has.
+    assert!(result.is_ok(), "{result:?}");
+    assert_ne!(page_content_bytes(&doc, 0), before);
+    assert_eq!(text::text_lines(&reopen(&doc), 0).unwrap()[0].text, "Stable tőxt");
 }
 
 #[test]
@@ -4570,4 +4566,13 @@ fn removing_marks_strips_wrappers_that_closed_open_state() {
     place_tagged(&mut doc, &page, MarkKind::Watermark.tag(), b"q /PCProbe Do Q\n".to_vec(), false).unwrap();
     assert_eq!(remove_marks(&mut doc, &[0], MarkKind::Watermark).unwrap(), 1);
     assert_eq!(streams(&doc, 0), ["q 2 0 0 2 0 0 cm"]);
+}
+
+/// Vietnamese typed over a Helvetica paragraph: the standard font can't draw ắ or đ, so the text
+/// is drawn with Inter, which every build has (it used to be refused without craft-fonts).
+#[test]
+fn vietnamese_replacement_is_drawn_with_inter() {
+    let mut doc = text_page("BT /F2 12 Tf 72 700 Td (Research summary) Tj ET");
+    text::replace_line(&mut doc, 0, 0, "Tóm tắt nghiên cứu đầy đủ").unwrap();
+    assert_eq!(text::text_lines(&reopen(&doc), 0).unwrap()[0].text, "Tóm tắt nghiên cứu đầy đủ");
 }

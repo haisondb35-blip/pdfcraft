@@ -635,7 +635,7 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 
 pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
-    let Some((index, id)) = app.active_ids() else { return };
+    let Some((_, id)) = app.active_ids() else { return };
     let Some(doc) = app.session.get(id) else { return };
     let has_signatures = doc.is_signed();
     let has_check = app.a11y.report.as_ref().is_some_and(|(d, _)| *d == id);
@@ -646,8 +646,6 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         !doc.info.layers.is_empty(),
         !doc.info.attachments.is_empty(),
     );
-    let page_count = doc.info.pages.len();
-    let labels: Vec<String> = doc.info.pages.iter().map(|p| p.label.clone()).collect();
     egui::Panel::right("rail")
         .resizable(false)
         .exact_size(48.0)
@@ -676,61 +674,37 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 rail_button(ui, RightPanel::Accessibility, "accessibility", "Accessibility Checker", false);
             }
             rail_button(ui, RightPanel::Tags, "tag", "Tags", false);
+        });
+}
 
-            // Page navigation cluster at the bottom (as in Acrobat's rail).
+/// The page bar along the bottom of the window: page navigation on the left (view history,
+/// the page number box, previous / next page), zoom and page display on the right.
+pub fn page_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    let t = Tokens::get(ui.ctx());
+    let Some((index, id)) = app.active_ids() else { return };
+    let Some(doc) = app.session.get(id) else { return };
+    let page_count = doc.info.pages.len();
+    let labels: Vec<String> = doc.info.pages.iter().map(|p| p.label.clone()).collect();
+    let mut page_display = None;
+    egui::Panel::bottom("page_bar")
+        .resizable(false)
+        .exact_size(36.0)
+        .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(10, 2)).stroke(Stroke::new(1.0, t.divider)))
+        .show(ui, |ui| {
             let view = &mut app.views[index];
-            let mut page_display = None;
-            ui.with_layout(Layout::bottom_up(Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.y = 2.0;
-                let tip = crate::commands::key_tip(ui.ctx(), tl!("Zoom out ({key})"), crate::commands::ZOOM_OUT);
-                if icons::button(ui, "zoom-out", 32.0, false, &tip).clicked() {
-                    view.zoom_step(false);
-                }
-                let tip = crate::commands::key_tip(ui.ctx(), tl!("Zoom in ({key})"), crate::commands::ZOOM_IN);
-                if icons::button(ui, "zoom-in", 32.0, false, &tip).clicked() {
-                    view.zoom_step(true);
-                }
-                // Between rotate and zoom, as in Acrobat. Its command runs once `view` is free.
-                let tip = crate::i18n::fmt(tl!("Page display: {layout}"), &[("layout", tl!(view.layout.label()))]);
-                let resp = icons::button(ui, view.layout.icon(), 32.0, false, &tip);
-                page_display = egui::Popup::menu(&resp)
-                    .show(|ui| {
-                        ui.set_min_width(220.0);
-                        rail_view_menu(ui, view)
-                    })
-                    .and_then(|r| r.inner);
-                let tip = crate::commands::key_tip(ui.ctx(), tl!("Rotate view clockwise ({key})"), crate::commands::ROTATE_CW);
-                if icons::button(ui, "rotate-cw", 32.0, false, &tip).clicked() {
-                    view.rotate_view(true);
-                }
-                // Not `columns-2` while fitting the page: that is the two-page view's icon.
-                let fit_icon = if view.fit == Fit::Width { "maximize" } else { "maximize-2" };
-                if icons::button(ui, fit_icon, 32.0, false, tl!("Toggle fit page / fit width")).clicked() {
-                    view.fit = if view.fit == Fit::Width { Fit::Page } else { Fit::Width };
-                    view.goto = Some((view.current, 0.0));
-                }
-                let zoom = format!("{:.0}%", view.zoom * 100.0);
-                ui.allocate_ui_with_layout(vec2(40.0, 16.0), Layout::top_down(Align::Center), |ui| {
-                    ui.label(egui::RichText::new(zoom).font(theme::medium(11.0)).color(t.text_muted));
-                });
-                ui.add_space(6.0);
-                if icons::button(ui, "chevron-down", 30.0, false, tl!("Next page")).clicked() {
-                    view.step_page(true);
-                }
-                if icons::button(ui, "chevron-up", 30.0, false, tl!("Previous page")).clicked() {
-                    view.step_page(false);
-                }
+            ui.horizontal_centered(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
                 // History is distinct from stepping to the adjacent page, and belongs to this tab.
                 for (forward, icon, label, shortcut, enabled) in [
-                    (true, "chevron-right", tl!("Next view"), crate::commands::NEXT_VIEW, !view.forward.is_empty()),
                     (false, "chevron-left", tl!("Previous view"), crate::commands::PREV_VIEW, !view.back.is_empty()),
+                    (true, "chevron-right", tl!("Next view"), crate::commands::NEXT_VIEW, !view.forward.is_empty()),
                 ] {
                     let tip = format!("{label} ({})", crate::commands::shortcut_label(ui.ctx(), shortcut));
-                    if ui.add_enabled_ui(enabled, |ui| icons::button(ui, icon, 30.0, false, &tip)).inner.clicked() {
+                    if ui.add_enabled_ui(enabled, |ui| icons::button(ui, icon, 28.0, false, &tip)).inner.clicked() {
                         view.view_history(forward);
                     }
                 }
-                ui.label(egui::RichText::new(page_count.to_string()).font(theme::regular(11.0)).color(t.text_muted));
+                ui.add_space(6.0);
                 let page_input_id = view.page_input_id();
                 // Consume replacement selection once, including when the editor has lost focus.
                 let reselect = std::mem::take(&mut view.page_input_reselect);
@@ -746,10 +720,10 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 let edit = egui::TextEdit::singleline(&mut view.page_input)
                     .id(page_input_id)
-                    .desired_width(34.0)
+                    .desired_width(40.0)
                     .horizontal_align(Align::Center)
                     .font(theme::medium(12.0))
-                    .margin(vec2(2.0, 4.0));
+                    .margin(vec2(2.0, 3.0));
                 let r = egui::Frame::NONE
                     .fill(t.field)
                     .stroke(Stroke::new(1.0, t.border))
@@ -765,11 +739,54 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     }
                     view.page_input = view.current_page_label(labels.get(view.current).map(String::as_str));
                 }
+                ui.label(egui::RichText::new(format!("/ {page_count}")).font(theme::regular(12.0)).color(t.text_muted));
+                ui.add_space(6.0);
+                if icons::button(ui, "chevron-up", 28.0, false, tl!("Previous page")).clicked() {
+                    view.step_page(false);
+                }
+                if icons::button(ui, "chevron-down", 28.0, false, tl!("Next page")).clicked() {
+                    view.step_page(true);
+                }
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    // Its command runs once `view` is free.
+                    let tip = crate::i18n::fmt(tl!("Page display: {layout}"), &[("layout", tl!(view.layout.label()))]);
+                    let resp = icons::button(ui, view.layout.icon(), 28.0, false, &tip);
+                    page_display = egui::Popup::menu(&resp)
+                        .show(|ui| {
+                            ui.set_min_width(220.0);
+                            rail_view_menu(ui, view)
+                        })
+                        .and_then(|r| r.inner);
+                    let tip = crate::commands::key_tip(ui.ctx(), tl!("Rotate view clockwise ({key})"), crate::commands::ROTATE_CW);
+                    if icons::button(ui, "rotate-cw", 28.0, false, &tip).clicked() {
+                        view.rotate_view(true);
+                    }
+                    // Not `columns-2` while fitting the page: that is the two-page view's icon.
+                    let fit_icon = if view.fit == Fit::Width { "maximize" } else { "maximize-2" };
+                    if icons::button(ui, fit_icon, 28.0, false, tl!("Toggle fit page / fit width")).clicked() {
+                        view.fit = if view.fit == Fit::Width { Fit::Page } else { Fit::Width };
+                        view.goto = Some((view.current, 0.0));
+                    }
+                    ui.add_space(6.0);
+                    let tip = crate::commands::key_tip(ui.ctx(), tl!("Zoom in ({key})"), crate::commands::ZOOM_IN);
+                    if icons::button(ui, "zoom-in", 28.0, false, &tip).clicked() {
+                        view.zoom_step(true);
+                    }
+                    let zoom = format!("{:.0}%", view.zoom * 100.0);
+                    ui.allocate_ui_with_layout(vec2(44.0, 20.0), Layout::top_down(Align::Center), |ui| {
+                        ui.label(egui::RichText::new(zoom).font(theme::medium(12.0)).color(t.text_muted));
+                    });
+                    let tip = crate::commands::key_tip(ui.ctx(), tl!("Zoom out ({key})"), crate::commands::ZOOM_OUT);
+                    if icons::button(ui, "zoom-out", 28.0, false, &tip).clicked() {
+                        view.zoom_step(false);
+                    }
+                });
             });
-            if let Some(id) = page_display {
-                app.execute(id);
-            }
         });
+    if let Some(id) = page_display {
+        app.execute(id);
+    }
 }
 
 /// View ▸ Page display and the rail's Page display menu: the layouts and the cover page.

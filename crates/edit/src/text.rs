@@ -1467,9 +1467,18 @@ fn no_hebrew_font() -> EditError {
 
 /// The faces a Type 3 replacement may draw `text` with, best first. Text with Hebrew takes the
 /// Hebrew face first (its Latin and digits too, so a line keeps one look), then the Japanese
-/// faces for anything it lacks; other text takes the Japanese faces, as before.
+/// faces for anything it lacks; other text takes the Japanese faces, as before. Inter, which every
+/// build has, comes last: Vietnamese and other letters the Japanese faces lack, or all of them in
+/// a build without craft-fonts.
 fn type3_faces(text: &str, family: crate::added::Family, bold: bool) -> Result<(Vec<&'static CraftFont>, bool), EditError> {
-    let japanese = pdfcraft_fonts::document_japanese_fonts_for_style(family == crate::added::Family::Times, bold);
+    let mut japanese = pdfcraft_fonts::document_japanese_fonts_for_style(family == crate::added::Family::Times, bold);
+    // Japanese text in a build without craft-fonts: say which font is missing (Inter has none).
+    if japanese.is_empty()
+        && text.chars().any(|c| matches!(u32::from(c), 0x3000..=0x30FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF | 0xFF00..=0xFFEF))
+    {
+        return Err(no_japanese_font());
+    }
+    japanese.push(pdfcraft_fonts::document_inter_font(bold));
     if !text.chars().any(crate::bidi::is_hebrew) {
         return Ok((japanese, false));
     }

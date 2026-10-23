@@ -1412,7 +1412,9 @@ impl Automation {
                 // The page font is Helvetica/WinAnsi: text it would turn into `?` is refused (with
                 // its line) by `pdfcraft_create::from_text`, as for every other caller.
                 let bytes = self.session.create_from_text(&title, &text).map_err(|e| match e {
-                    pdfcraft_engine::EditError::Create(pdfcraft_engine::CreateError::Invalid(m)) => ToolError::InvalidArgs(m),
+                    pdfcraft_engine::EditError::Create(pdfcraft_engine::CreateError::Invalid(m)) => ToolError::InvalidArgs(format!(
+                        "{m}; for Vietnamese or other non-Western text, create blank pages and add the text with page_add_text (it embeds a font that draws it)"
+                    )),
                     e => failed(e),
                 })?;
                 (format!("{title}.pdf"), bytes)
