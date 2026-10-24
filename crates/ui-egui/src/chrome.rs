@@ -763,7 +763,8 @@ pub fn page_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 let position = page_position(view.current, page_count, labels.get(view.current).map_or("", String::as_str));
                 let shown = if view.current < page_count { view.current + 1 } else { page_count };
                 let of = crate::i18n::fmt(tl!("Page {p} of {n}"), &[("p", &shown.to_string()), ("n", &page_count.to_string())]);
-                ui.label(egui::RichText::new(format!("/ {position}")).font(theme::regular(12.0)).color(t.text_muted)).on_hover_text(of);
+                ui.label(egui::RichText::new("/").font(theme::regular(12.0)).color(t.text_muted));
+                ui.label(egui::RichText::new(position).font(theme::regular(12.0)).color(t.text_muted)).on_hover_text(of);
                 ui.add_space(6.0);
                 if icons::button(ui, "chevron-up", 28.0, false, tl!("Previous page")).clicked() {
                     view.step_page(false);

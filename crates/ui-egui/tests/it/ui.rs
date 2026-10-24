@@ -1540,7 +1540,9 @@ fn the_edit_panel_keeps_the_add_update_remove_menu() {
 /// being drawn under the page number field.
 #[test]
 fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
-    let (width, height) = (1000.0, 560.0);
+    // The page navigation is in the page bar along the bottom (brian-local), so the rail's buttons
+    // have the rail to themselves and still scroll in a short window.
+    let (width, height) = (1000.0, 420.0);
     let mut h = Harness::builder().with_size(egui::vec2(width, height)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
@@ -1552,9 +1554,8 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
         h.query_all_by_label(label).map(|n| n.rect()).find(|r| r.left() >= width - 48.0).unwrap_or_else(|| panic!("{label} in the rail"))
     };
     let page = h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect();
-    assert!(page.left() >= width - 48.0 && page.bottom() <= height, "page field {page:?} in the rail");
-    assert!(rail(&h, "Comments").bottom() <= page.top(), "the first button sits above the page field");
-    assert!(rail(&h, "Tags").top() >= page.top(), "the window is short enough that the buttons must scroll");
+    assert!(page.top() >= height - 40.0 && page.bottom() <= height, "page field {page:?} in the page bar");
+    assert!(page.right() < width - 48.0, "page field {page:?} left of the rail");
     let over = rail(&h, "Comments").center();
     h.event(egui::Event::PointerMoved(over));
     for _ in 0..8 {
@@ -1567,6 +1568,6 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
         h.run_steps(4);
     }
     let tags = rail(&h, "Tags");
-    assert!(tags.bottom() <= page.top(), "Tags {tags:?} scrolls into view above the page field {page:?}");
+    assert!(tags.bottom() <= page.top(), "Tags {tags:?} scrolls into view above the page bar {page:?}");
     assert_eq!(h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect(), page, "navigation stays put");
 }
