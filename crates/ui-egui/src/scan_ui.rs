@@ -101,7 +101,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
             Some(Ok(found)) if !found.is_empty() => {
                 let current = session.scanner(draft).cloned();
                 ui.add_enabled_ui(!busy, |ui| {
-                    egui::ComboBox::from_id_salt("scan-device")
+                    craft_ui::ComboBox::from_id_salt("scan-device")
                         .selected_text(current.as_ref().map(Scanner::display_name).unwrap_or_default())
                         .width(260.0)
                         .show_ui(ui, |ui| {
@@ -142,7 +142,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         ui.end_row();
         ui.label(tl!("Colour"));
         ui.add_enabled_ui(!busy, |ui| {
-            egui::ComboBox::from_id_salt("scan-mode").selected_text(mode_label(draft.settings.mode)).width(260.0).show_ui(ui, |ui| {
+            craft_ui::ComboBox::from_id_salt("scan-mode").selected_text(mode_label(draft.settings.mode)).width(260.0).show_ui(ui, |ui| {
                 for m in ColorMode::ALL {
                     ui.selectable_value(&mut draft.settings.mode, m, mode_label(m));
                 }
@@ -151,7 +151,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         ui.end_row();
         ui.label(tl!("Resolution"));
         ui.add_enabled_ui(!busy, |ui| {
-            egui::ComboBox::from_id_salt("scan-dpi").selected_text(format!("{} dpi", draft.settings.dpi)).width(260.0).show_ui(ui, |ui| {
+            craft_ui::ComboBox::from_id_salt("scan-dpi").selected_text(format!("{} dpi", draft.settings.dpi)).width(260.0).show_ui(ui, |ui| {
                 for v in RESOLUTIONS {
                     ui.selectable_value(&mut draft.settings.dpi, v, format!("{v} dpi"));
                 }

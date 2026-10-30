@@ -41,7 +41,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, _t: &Tokens) -> (bo
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.label(tl!("Line weight"));
-        egui::ComboBox::from_id_salt("printer-marks-weight").selected_text(format!("{} pt", d.marks.line_width)).show_ui(ui, |ui| {
+        craft_ui::ComboBox::from_id_salt("printer-marks-weight").selected_text(format!("{} pt", d.marks.line_width)).show_ui(ui, |ui| {
             for w in [0.125, 0.25, 0.5] {
                 ui.selectable_value(&mut d.marks.line_width, w, format!("{w} pt"));
             }

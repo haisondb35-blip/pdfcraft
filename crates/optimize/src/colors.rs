@@ -47,7 +47,7 @@ fn convert_image(doc: &Document, s: &Stream, gray: bool) -> Option<Stream> {
     if !dct && s.dict.int(b"BitsPerComponent") != Some(8) {
         return None;
     }
-    let px = pixels(s, 3)?;
+    let px = pixels(doc, s, 3)?;
     let mut out = Vec::with_capacity(px.len() / 3 * if gray { 1 } else { 4 });
     for p in px.as_chunks::<3>().0 {
         convert_pixel(p, gray, &mut out);
