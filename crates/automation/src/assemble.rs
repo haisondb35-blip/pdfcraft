@@ -127,6 +127,29 @@ impl Automation {
         };
         self.apply(a, Edit::AddPrinterMarks { pages, marks, title })
     }
+    /// Print production ▸ Convert colors (gray or CMYK).
+    pub(crate) fn page_convert_colors(&mut self, a: &Args) -> Result<Value> {
+        let n = self.doc(a)?.info.pages.len();
+        let pages = match a.opt_ints("pages")? {
+            Some(_) => self.pages(a, "pages")?,
+            None => (0..n).collect(),
+        };
+        let target = a.str("to")?;
+        let target = pdfcraft_engine::ColorTarget::from_key(target)
+            .ok_or_else(|| ToolError::InvalidArgs(format!("to must be \"gray\" or \"cmyk\", not {target:?}")))?;
+        self.apply(a, Edit::ConvertColors { pages, target })
+    }
+    /// Print production ▸ Fix hairlines (widen lines thinner than `threshold`).
+    pub(crate) fn page_fix_hairlines(&mut self, a: &Args) -> Result<Value> {
+        let n = self.doc(a)?.info.pages.len();
+        let pages = match a.opt_ints("pages")? {
+            Some(_) => self.pages(a, "pages")?,
+            None => (0..n).collect(),
+        };
+        let threshold = a.opt_num("threshold")?.unwrap_or(0.25);
+        let replace = a.opt_num("width")?.unwrap_or(threshold);
+        self.apply(a, Edit::FixHairlines { pages, threshold, replace })
+    }
 
 
     pub(crate) fn page_set_box(&mut self, a: &Args) -> Result<Value> {
