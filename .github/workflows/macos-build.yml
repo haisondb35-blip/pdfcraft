@@ -1,0 +1,67 @@
+# The owner's macOS test build (fork only): the app's DMG, universal (Apple silicon and Intel),
+# ad-hoc signed and not notarized, with craft-fonts and craft-i18n as the release build has them,
+# plus this branch's own translation rows (i18n-local/). Run it from the Actions tab or with
+# `gh workflow run macos-build.yml --ref brian-local`; the DMG is the run's artifact.
+name: macOS test build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    timeout-minutes: 360
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out craft-fonts at the release pin
+        shell: bash
+        run: |
+          ref=$(grep -oE 'craft-fonts-ref:[[:space:]]*[0-9a-f]{40}' .github/workflows/release.yml | grep -oE '[0-9a-f]{40}' | head -1)
+          git init -q craft-fonts
+          git -C craft-fonts fetch -q --depth 1 https://github.com/storytold/craft-fonts.git "$ref"
+          git -C craft-fonts checkout -q FETCH_HEAD
+          echo "CRAFT_FONTS_DIR=$GITHUB_WORKSPACE/craft-fonts" >> "$GITHUB_ENV"
+          echo "CRAFT_FONTS_REQUIRED=1" >> "$GITHUB_ENV"
+      - name: Check out craft-i18n with this branch's own rows
+        shell: bash
+        run: |
+          [ -f craft-i18n.rev ] || exit 0
+          rev=$(tr -d '[:space:]' < craft-i18n.rev)
+          git init -q craft-i18n
+          git -C craft-i18n fetch -q --depth 1 https://github.com/storytold/craft-i18n.git "$rev"
+          git -C craft-i18n checkout -q FETCH_HEAD
+          app="${GITHUB_REPOSITORY#*/}"
+          python3 - "$app" <<'EOF'
+          import glob, os, sys
+          app = sys.argv[1]
+          key = lambda l: tuple(l.split('\t')[:2]) if len(l.split('\t')) >= 3 and not l.startswith('#') else None
+          for f in glob.glob('i18n-local/*.tsv'):
+              target = os.path.join('craft-i18n', 'locales', os.path.basename(f)[:-4], app + '.tsv')
+              if not os.path.exists(target):
+                  continue
+              have = {key(l) for l in open(target, encoding='utf-8').read().split('\n')}
+              add = [l for l in open(f, encoding='utf-8').read().split('\n') if key(l) and key(l) not in have]
+              if add:
+                  open(target, 'a', encoding='utf-8').write('\n' + '\n'.join(add) + '\n')
+              print(target, len(add))
+          EOF
+          echo "CRAFT_I18N_DIR=$GITHUB_WORKSPACE/craft-i18n" >> "$GITHUB_ENV"
+          echo "CRAFT_I18N_REQUIRED=1" >> "$GITHUB_ENV"
+      - name: Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build and package
+        env:
+          DIST: ${{ github.workspace }}/dist
+        run: packaging/macos/package.sh --arch universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14
