@@ -546,6 +546,10 @@ pub fn codex_args(l: &Launch) -> Vec<String> {
     a.push(format!("mcp_servers.pdfcraft.command={}", toml_str(&server.command.to_string_lossy())));
     a.push("-c".into());
     a.push(format!("mcp_servers.pdfcraft.args=[{}]", server.args.iter().map(|x| toml_str(x)).collect::<Vec<_>>().join(",")));
+    // Codex asks before a tool that may change something; with approval_policy "never" no one can
+    // answer and the call is refused. The app's own tools are approved (every change is undoable).
+    a.push("-c".into());
+    a.push("mcp_servers.pdfcraft.default_tools_approval_mode=\"approve\"".into());
     if !server.env.is_empty() {
         a.push("-c".into());
         a.push(format!(
@@ -1354,6 +1358,7 @@ mod tests {
         assert!(a.contains(&"approval_policy=\"never\"".to_string()));
         assert!(a.contains(&r#"mcp_servers.pdfcraft.command="C:\\Program Files\\App\\pdfcraft-cli.exe""#.to_string()), "{a:?}");
         assert!(a.contains(&r#"mcp_servers.pdfcraft.args=["mcp","--app","4242"]"#.to_string()), "{a:?}");
+        assert!(a.contains(&r#"mcp_servers.pdfcraft.default_tools_approval_mode="approve""#.to_string()), "the app's tools may change the document: {a:?}");
         assert!(a.contains(&r#"mcp_servers.pdfcraft.env={PDFCRAFT_CONTROL_TOKEN="t\"k"}"#.to_string()), "{a:?}");
         assert_eq!(a.last().map(String::as_str), Some("-"), "the prompt comes on stdin");
         assert!(!a.contains(&"resume".to_string()));
