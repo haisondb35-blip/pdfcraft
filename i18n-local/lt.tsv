@@ -1,0 +1,23 @@
+# brian-local rows for lt that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Crop marks	Pjovimo žymės
+	Bleed marks	Užlaidos žymės
+	Registration marks	Registracijos žymės
+	Color bars	Spalvų juostos
+	Page information	Puslapio informacija
+	Line weight	Linijos storis
+	Convert to	Konvertuoti į
+	Grayscale	Pilkieji tonai
+	Hairline width threshold	Plonų linijų storio riba
+	Replace with	Pakeisti į
+	Scanner	Skeneris
+	Scan to PDF	Nuskaityti į PDF
+	Insert from scanner	Įterpti iš skenerio
+	Create PDF from scanner…	Sukurti PDF iš skenerio…
+	Insert pages from scanner…	Įterpti puslapius iš skenerio…
+	Flatbed	Skenerio stiklas
+	Document feeder	Dokumentų tiektuvas
+	Looking for scanners…	Ieškoma skenerių…
+	Search again	Ieškoti dar kartą
+	Recognize text after scanning	Nuskaičius atpažinti tekstą
+	Scanning… page {n}	Nuskaitoma… puslapis {n}

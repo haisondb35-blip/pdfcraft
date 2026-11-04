@@ -1,0 +1,23 @@
+# brian-local rows for zh-hant that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	轉換為
+	Grayscale	灰階
+	Crop marks	裁切標記
+	Bleed marks	出血標記
+	Registration marks	套準標記
+	Color bars	色條
+	Page information	頁面資訊
+	Line weight	線條粗細
+	Hairline width threshold	細線寬度臨界值
+	Replace with	取代為
+	Scanner	掃描器
+	Scan to PDF	掃描為 PDF
+	Insert from scanner	從掃描器插入
+	Create PDF from scanner…	從掃描器建立 PDF…
+	Insert pages from scanner…	從掃描器插入頁面…
+	Flatbed	平台玻璃
+	Document feeder	自動送紙器
+	Looking for scanners…	正在尋找掃描器…
+	Search again	重新尋找
+	Recognize text after scanning	掃描後辨識文字
+	Scanning… page {n}	正在掃描… 第 {n} 頁

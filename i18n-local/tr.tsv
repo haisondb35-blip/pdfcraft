@@ -1,0 +1,23 @@
+# brian-local rows for tr that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Şuna dönüştür
+	Grayscale	Gri tonlamalı
+	Crop marks	Kesim işaretleri
+	Bleed marks	Taşma payı işaretleri
+	Registration marks	Kayıt işaretleri
+	Color bars	Renk çubukları
+	Page information	Sayfa bilgileri
+	Line weight	Çizgi kalınlığı
+	Hairline width threshold	İnce çizgi kalınlığı eşiği
+	Replace with	Şununla değiştir
+	Scanner	Tarayıcı
+	Scan to PDF	PDF'ye tara
+	Insert from scanner	Tarayıcıdan ekle
+	Create PDF from scanner…	Tarayıcıdan PDF oluştur…
+	Insert pages from scanner…	Tarayıcıdan sayfa ekle…
+	Flatbed	Tarayıcı camı
+	Document feeder	Belge besleyici
+	Looking for scanners…	Tarayıcılar aranıyor…
+	Search again	Yeniden ara
+	Recognize text after scanning	Taramadan sonra metni tanı
+	Scanning… page {n}	Taranıyor… sayfa {n}

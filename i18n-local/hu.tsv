@@ -1,0 +1,23 @@
+# brian-local rows for hu that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Átalakítás erre
+	Grayscale	Szürkeárnyalatos
+	Crop marks	Vágójelek
+	Bleed marks	Kifutójelek
+	Registration marks	Illesztőjelek
+	Color bars	Színsávok
+	Page information	Oldalinformációk
+	Line weight	Vonalvastagság
+	Hairline width threshold	Hajszálvonal vastagsági küszöbe
+	Replace with	Csere erre
+	Scanner	Lapolvasó
+	Scan to PDF	Beolvasás PDF-be
+	Insert from scanner	Beszúrás lapolvasóról
+	Create PDF from scanner…	PDF létrehozása lapolvasóról…
+	Insert pages from scanner…	Oldalak beszúrása lapolvasóról…
+	Flatbed	Síkágy
+	Document feeder	Lapadagoló
+	Looking for scanners…	Lapolvasók keresése…
+	Search again	Keresés újra
+	Recognize text after scanning	Szövegfelismerés beolvasás után
+	Scanning… page {n}	Beolvasás… {n}. oldal

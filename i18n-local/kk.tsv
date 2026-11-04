@@ -1,0 +1,23 @@
+# brian-local rows for kk that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Түрлендіру
+	Grayscale	Сұр реңктер
+	Crop marks	Кесу белгілері
+	Bleed marks	Шығыңқы белгілер
+	Registration marks	Тіркеу белгілері
+	Color bars	Түс жолақтары
+	Page information	Бет туралы ақпарат
+	Line weight	Сызық қалыңдығы
+	Hairline width threshold	Жіңішке сызық қалыңдығының шегі
+	Replace with	Мынамен ауыстыру
+	Scanner	Сканер
+	Scan to PDF	PDF-ке сканерлеу
+	Insert from scanner	Сканерден енгізу
+	Create PDF from scanner…	Сканерден PDF жасау…
+	Insert pages from scanner…	Сканерден беттер енгізу…
+	Flatbed	Сканер әйнегі
+	Document feeder	Құжат беру құрылғысы
+	Looking for scanners…	Сканерлер ізделуде…
+	Search again	Қайта іздеу
+	Recognize text after scanning	Сканерлеуден кейін мәтінді тану
+	Scanning… page {n}	Сканерлеу… бет {n}

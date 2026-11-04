@@ -346,6 +346,30 @@ fn closed_right_panel_stays_closed_for_a_document_asking_for_its_outline() {
     assert_eq!(h.state().right, None, "the closed right panel reopened after a restart");
 }
 
+#[test]
+fn navigation_rail_toggles_between_right_and_left_and_persists() {
+    use pdfcraft_ui_egui::Dialog;
+
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
+    assert_eq!(h.state().side_panels.rail_side, pdfcraft_ui_egui::side_panels::ToolsSide::Right);
+    h.get_by_label("Dock navigation rail on Left").click();
+    h.run_steps(3);
+    assert_eq!(h.state().side_panels.rail_side, pdfcraft_ui_egui::side_panels::ToolsSide::Left);
+    let saved = h.state().persist();
+    let mut h2 = harness(move |app| {
+        app.restore(&saved);
+    });
+    assert_eq!(h2.state().side_panels.rail_side, pdfcraft_ui_egui::side_panels::ToolsSide::Left);
+    h2.state_mut().dialog = Some(Dialog::Preferences);
+    h2.run_steps(3);
+    h2.get_by_label("Navigation rail side: Right").click();
+    h2.run_steps(3);
+    assert_eq!(h2.state().side_panels.rail_side, pdfcraft_ui_egui::side_panels::ToolsSide::Right);
+    h2.get_by_label("Navigation rail side: Left").click();
+    h2.run_steps(3);
+    assert_eq!(h2.state().side_panels.rail_side, pdfcraft_ui_egui::side_panels::ToolsSide::Left);
+}
+
 /// Read mode hides the tools, not the navigation panes: the rail's Bookmarks button opens the
 /// bookmarks when Read is the default workspace (#932), and the left tool pane stays hidden.
 #[test]
@@ -1435,6 +1459,9 @@ fn cancelling_then_discarding_an_earlier_dirty_tab_preserves_the_selected_docume
 
 #[test]
 fn long_german_tool_labels_stay_within_the_sidebar() {
+    if crate::support::skip_without_catalogs("long_german_tool_labels_stay_within_the_sidebar") {
+        return;
+    }
     use pdfcraft_ui_egui::{LeftPanel, Mode};
     let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
     h.state_mut().set_option("language", "de").unwrap();
@@ -1696,37 +1723,53 @@ fn the_edit_panel_keeps_the_add_update_remove_menu() {
 /// being drawn under the page number field.
 #[test]
 fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
+    use pdfcraft_ui_egui::side_panels::ToolsSide;
+
     // The page navigation is in the page bar along the bottom (brian-local), so the rail's buttons
-    // have the rail to themselves and still scroll in a short window.
-    let (width, height) = (1000.0, 420.0);
-    let mut h = Harness::builder().with_size(egui::vec2(width, height)).build_eframe(|_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.open_bytes("short.pdf", None, FIXTURE.to_vec()).unwrap();
-        app
-    });
-    crate::support::settle(&mut h);
-    let rail = |h: &Harness<'static, PdfCraftApp>, label: &str| {
-        h.query_all_by_label(label).map(|n| n.rect()).find(|r| r.left() >= width - 48.0).unwrap_or_else(|| panic!("{label} in the rail"))
-    };
-    let page = h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect();
-    assert!(page.top() >= height - 40.0 && page.bottom() <= height, "page field {page:?} in the page bar");
-    assert!(page.right() < width - 48.0, "page field {page:?} left of the rail");
-    let over = rail(&h, "Comments").center();
-    h.event(egui::Event::PointerMoved(over));
-    for _ in 0..8 {
-        h.event(egui::Event::MouseWheel {
-            unit: egui::MouseWheelUnit::Point,
-            delta: egui::vec2(0.0, -200.0),
-            phase: egui::TouchPhase::Move,
-            modifiers: egui::Modifiers::NONE,
-            source: egui::MouseWheelSource::Unknown,
+    // have the rail to themselves, keep upstream's dock button at its foot, and still scroll in a
+    // short window, on either side.
+    for side in [ToolsSide::Right, ToolsSide::Left] {
+        let (width, height) = (1000.0, 420.0);
+        let mut h = Harness::builder().with_size(egui::vec2(width, height)).build_eframe(move |_cc| {
+            let mut app = PdfCraftApp::new();
+            app.set_option("language", "en").unwrap();
+            app.side_panels.rail_side = side;
+            app.open_bytes("short.pdf", None, FIXTURE.to_vec()).unwrap();
+            app
         });
-        h.run_steps(4);
+        crate::support::settle(&mut h);
+        let in_rail = |r: egui::Rect| match side {
+            ToolsSide::Left => r.right() <= 48.0,
+            ToolsSide::Right => r.left() >= width - 48.0,
+        };
+        let rail = |h: &Harness<'static, PdfCraftApp>, label: &str| {
+            h.query_all_by_label(label).map(|n| n.rect()).find(|r| in_rail(*r)).unwrap_or_else(|| panic!("{label} in the rail ({side:?})"))
+        };
+        let page = h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect();
+        assert!(page.top() >= height - 40.0 && page.bottom() <= height, "page field {page:?} in the page bar");
+        assert!(!in_rail(page), "page field {page:?} outside the rail ({side:?})");
+        let dock_label = match side {
+            ToolsSide::Right => "Dock navigation rail on Left",
+            ToolsSide::Left => "Dock navigation rail on Right",
+        };
+        let dock = rail(&h, dock_label);
+        assert!(dock.bottom() <= page.top(), "dock button {dock:?} above the page bar");
+        let first = rail(&h, "Comments");
+        h.event(egui::Event::PointerMoved(first.center()));
+        for _ in 0..8 {
+            h.event(egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, -200.0),
+                phase: egui::TouchPhase::Move,
+                modifiers: egui::Modifiers::NONE,
+                source: egui::MouseWheelSource::Unknown,
+            });
+            h.run_steps(4);
+        }
+        let tags = rail(&h, "Tags");
+        assert!(tags.bottom() <= dock.top() + 1.0, "Tags {tags:?} scrolls into view above the dock button {dock:?}");
+        assert_eq!(h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect(), page, "navigation stays put");
     }
-    let tags = rail(&h, "Tags");
-    assert!(tags.bottom() <= page.top(), "Tags {tags:?} scrolls into view above the page bar {page:?}");
-    assert_eq!(h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect(), page, "navigation stays put");
 }
 
 /// A PDF with `n` empty 200×300 pt pages.

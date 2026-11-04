@@ -1,0 +1,23 @@
+# brian-local rows for el that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Μετατροπή σε
+	Grayscale	Κλίμακα του γκρι
+	Crop marks	Σημάδια κοπής
+	Bleed marks	Σημάδια υπερχείλισης
+	Registration marks	Σημάδια συμπροσαρμογής
+	Color bars	Γραμμές χρωμάτων
+	Page information	Πληροφορίες σελίδας
+	Line weight	Πάχος γραμμής
+	Hairline width threshold	Όριο πάχους λεπτής γραμμής
+	Replace with	Αντικατάσταση με
+	Scanner	Σαρωτής
+	Scan to PDF	Σάρωση σε PDF
+	Insert from scanner	Εισαγωγή από σαρωτή
+	Create PDF from scanner…	Δημιουργία PDF από σαρωτή…
+	Insert pages from scanner…	Εισαγωγή σελίδων από σαρωτή…
+	Flatbed	Γυάλινη επιφάνεια
+	Document feeder	Τροφοδότης εγγράφων
+	Looking for scanners…	Αναζήτηση σαρωτών…
+	Search again	Νέα αναζήτηση
+	Recognize text after scanning	Αναγνώριση κειμένου μετά τη σάρωση
+	Scanning… page {n}	Σάρωση… σελίδα {n}

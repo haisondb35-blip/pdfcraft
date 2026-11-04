@@ -1,0 +1,23 @@
+# brian-local rows for ja that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	変換先
+	Grayscale	グレースケール
+	Crop marks	トンボ
+	Bleed marks	裁ち落としマーク
+	Registration marks	レジストレーションマーク
+	Color bars	カラーバー
+	Page information	ページ情報
+	Line weight	線幅
+	Hairline width threshold	極細線のしきい値
+	Replace with	置き換える太さ
+	Scanner	スキャナー
+	Scan to PDF	PDF にスキャン
+	Insert from scanner	スキャナーから挿入
+	Create PDF from scanner…	スキャナーから PDF を作成…
+	Insert pages from scanner…	スキャナーからページを挿入…
+	Flatbed	原稿台
+	Document feeder	原稿送り装置
+	Looking for scanners…	スキャナーを検索中…
+	Search again	再検索
+	Recognize text after scanning	スキャン後にテキストを認識
+	Scanning… page {n}	スキャン中… ページ {n}

@@ -1,0 +1,23 @@
+# brian-local rows for cs that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Převést na
+	Grayscale	Odstíny šedi
+	Crop marks	Ořezové značky
+	Bleed marks	Značky spadávky
+	Registration marks	Soutiskové značky
+	Color bars	Barevné pruhy
+	Page information	Informace o stránce
+	Line weight	Tloušťka čáry
+	Hairline width threshold	Prahová šířka vlasové čáry
+	Replace with	Nahradit hodnotou
+	Scanner	Skener
+	Scan to PDF	Skenovat do PDF
+	Insert from scanner	Vložit ze skeneru
+	Create PDF from scanner…	Vytvořit PDF ze skeneru…
+	Insert pages from scanner…	Vložit stránky ze skeneru…
+	Flatbed	Skleněná plocha
+	Document feeder	Podavač dokumentů
+	Looking for scanners…	Hledání skenerů…
+	Search again	Hledat znovu
+	Recognize text after scanning	Po naskenování rozpoznat text
+	Scanning… page {n}	Skenování… stránka {n}

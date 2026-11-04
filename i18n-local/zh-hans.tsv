@@ -1,0 +1,23 @@
+# brian-local rows for zh-hans that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	转换为
+	Grayscale	灰度
+	Crop marks	裁切标记
+	Bleed marks	出血标记
+	Registration marks	套准标记
+	Color bars	色条
+	Page information	页面信息
+	Line weight	线条粗细
+	Hairline width threshold	细线宽度阈值
+	Replace with	替换为
+	Scanner	扫描仪
+	Scan to PDF	扫描为 PDF
+	Insert from scanner	从扫描仪插入
+	Create PDF from scanner…	从扫描仪创建 PDF…
+	Insert pages from scanner…	从扫描仪插入页面…
+	Flatbed	平板玻璃
+	Document feeder	自动进纸器
+	Looking for scanners…	正在查找扫描仪…
+	Search again	重新查找
+	Recognize text after scanning	扫描后识别文本
+	Scanning… page {n}	正在扫描… 第 {n} 页

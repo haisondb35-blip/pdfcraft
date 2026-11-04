@@ -1,0 +1,23 @@
+# brian-local rows for uk that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Перетворити на
+	Grayscale	Відтінки сірого
+	Crop marks	Мітки обрізу
+	Bleed marks	Мітки випуску за обріз
+	Registration marks	Мітки приводки
+	Color bars	Кольорові шкали
+	Page information	Відомості про сторінку
+	Line weight	Товщина лінії
+	Hairline width threshold	Поріг товщини волосяної лінії
+	Replace with	Замінити на
+	Scanner	Сканер
+	Scan to PDF	Сканувати в PDF
+	Insert from scanner	Вставити зі сканера
+	Create PDF from scanner…	Створити PDF зі сканера…
+	Insert pages from scanner…	Вставити сторінки зі сканера…
+	Flatbed	Скло сканера
+	Document feeder	Автоподавач документів
+	Looking for scanners…	Пошук сканерів…
+	Search again	Шукати знову
+	Recognize text after scanning	Розпізнати текст після сканування
+	Scanning… page {n}	Сканування… сторінка {n}

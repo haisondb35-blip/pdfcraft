@@ -1,0 +1,23 @@
+# brian-local rows for te that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	దీనికి మార్చు
+	Grayscale	గ్రేస్కేల్
+	Crop marks	కత్తిరింపు గుర్తులు
+	Bleed marks	బ్లీడ్ గుర్తులు
+	Registration marks	రిజిస్ట్రేషన్ గుర్తులు
+	Color bars	రంగు పట్టీలు
+	Page information	పేజీ సమాచారం
+	Line weight	గీత మందం
+	Hairline width threshold	సన్నని గీత మందం పరిమితి
+	Replace with	దీనితో మార్చు
+	Scanner	స్కానర్
+	Scan to PDF	PDF కి స్కాన్ చేయి
+	Insert from scanner	స్కానర్ నుండి చొప్పించు
+	Create PDF from scanner…	స్కానర్ నుండి PDF సృష్టించు…
+	Insert pages from scanner…	స్కానర్ నుండి పేజీలను చొప్పించు…
+	Flatbed	స్కానర్ గాజు
+	Document feeder	డాక్యుమెంట్ ఫీడర్
+	Looking for scanners…	స్కానర్ల కోసం వెతుకుతోంది…
+	Search again	మళ్ళీ వెతుకు
+	Recognize text after scanning	స్కాన్ చేసిన తర్వాత వచనాన్ని గుర్తించు
+	Scanning… page {n}	స్కాన్ చేస్తోంది… పేజీ {n}

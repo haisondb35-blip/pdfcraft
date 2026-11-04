@@ -1,0 +1,23 @@
+# brian-local rows for vi that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Crop marks	Dấu cắt
+	Bleed marks	Dấu tràn lề
+	Registration marks	Dấu chồng màu
+	Color bars	Thanh màu
+	Page information	Thông tin trang
+	Line weight	Độ dày nét
+	Convert to	Chuyển sang
+	Grayscale	Thang xám
+	Hairline width threshold	Ngưỡng độ dày nét mảnh
+	Replace with	Thay bằng
+	Scanner	Máy quét
+	Scan to PDF	Quét thành PDF
+	Insert from scanner	Chèn từ máy quét
+	Create PDF from scanner…	Tạo PDF từ máy quét…
+	Insert pages from scanner…	Chèn trang từ máy quét…
+	Flatbed	Mặt kính
+	Document feeder	Khay nạp giấy
+	Looking for scanners…	Đang tìm máy quét…
+	Search again	Tìm lại
+	Recognize text after scanning	Nhận dạng chữ sau khi quét
+	Scanning… page {n}	Đang quét… trang {n}

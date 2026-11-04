@@ -1,0 +1,23 @@
+# brian-local rows for pl that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	Konwertuj na
+	Grayscale	Skala szarości
+	Crop marks	Znaczniki cięcia
+	Bleed marks	Znaczniki spadu
+	Registration marks	Znaczniki pasowania
+	Color bars	Paski kolorów
+	Page information	Informacje o stronie
+	Line weight	Grubość linii
+	Hairline width threshold	Próg grubości linii włosowej
+	Replace with	Zastąp przez
+	Scanner	Skaner
+	Scan to PDF	Skanuj do PDF
+	Insert from scanner	Wstaw ze skanera
+	Create PDF from scanner…	Utwórz PDF ze skanera…
+	Insert pages from scanner…	Wstaw strony ze skanera…
+	Flatbed	Szyba skanera
+	Document feeder	Podajnik dokumentów
+	Looking for scanners…	Wyszukiwanie skanerów…
+	Search again	Szukaj ponownie
+	Recognize text after scanning	Rozpoznaj tekst po zeskanowaniu
+	Scanning… page {n}	Skanowanie… strona {n}

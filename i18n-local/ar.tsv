@@ -1,0 +1,23 @@
+# brian-local rows for ar that craft-i18n does not carry yet (merged into the
+# craft-i18n catalogs at build time by _tools/package-all.ps1). Same columns as craft-i18n.
+	Convert to	تحويل إلى
+	Grayscale	تدرج رمادي
+	Crop marks	علامات القص
+	Bleed marks	علامات النزف
+	Registration marks	علامات التسجيل
+	Color bars	أشرطة الألوان
+	Page information	معلومات الصفحة
+	Line weight	سُمك الخط
+	Hairline width threshold	حد عرض الخط الشعري
+	Replace with	استبدال بـ
+	Scanner	الماسح الضوئي
+	Scan to PDF	مسح ضوئي إلى PDF
+	Insert from scanner	إدراج من الماسح الضوئي
+	Create PDF from scanner…	إنشاء PDF من الماسح الضوئي…
+	Insert pages from scanner…	إدراج صفحات من الماسح الضوئي…
+	Flatbed	السطح الزجاجي
+	Document feeder	وحدة تغذية المستندات
+	Looking for scanners…	جارٍ البحث عن الماسحات الضوئية…
+	Search again	البحث مرة أخرى
+	Recognize text after scanning	التعرف على النص بعد المسح الضوئي
+	Scanning… page {n}	جارٍ المسح الضوئي… الصفحة {n}

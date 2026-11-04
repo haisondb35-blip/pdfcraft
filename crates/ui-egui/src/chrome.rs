@@ -1,6 +1,6 @@
 //! Window chrome: tab strip (with the integrated macOS title bar), mode bar, right rail.
 
-use craft_ui::panes::{Edge, Rail, RailItem, RailRequest};
+use craft_ui::panes::{Rail, RailItem, RailRequest};
 use egui::{Align, Color32, CornerRadius, Layout, Rect, Sense, Stroke, vec2};
 
 use crate::canvas::{DocView, Fit, PageLayout};
@@ -540,7 +540,8 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         });
 }
 
-/// Draw the right tool rail (the side panels' buttons; navigation and zoom are in [`page_bar`]) for the
+/// Draw the tool rail (the side panels' buttons; navigation and zoom are in [`page_bar`]) on the
+/// side File › Preferences gives it (or its own dock button) for the
 /// active view.
 pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
@@ -577,10 +578,19 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
     items.push(item(RightPanel::Tags, "tag", "Tags", None));
     let rail = Rail::new(egui::Id::unique("rail"))
-        .edge(Edge::End)
+        .edge(app.side_panels.rail_edge())
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(6, 8)).stroke(Stroke::new(1.0, t.divider)))
-        // Page navigation, zoom and page display are in the page bar along the bottom.
-        .show(ui, &items, app.right.as_ref(), |_| {});
+        // Page navigation, zoom and page display are in the page bar along the bottom (brian-local);
+        // the rail keeps upstream's button that docks it on the other side.
+        .show(ui, &items, app.right.as_ref(), |ui| {
+            ui.with_layout(Layout::bottom_up(Align::Center), |ui| {
+                let right = app.side_panels.rail_on_right();
+                let dock_tip = if right { tl!("Dock navigation rail on Left") } else { tl!("Dock navigation rail on Right") };
+                if icons::button(ui, if right { "panel-left" } else { "panel-right" }, 32.0, false, dock_tip).clicked() {
+                    app.side_panels.rail_side = if right { crate::side_panels::ToolsSide::Left } else { crate::side_panels::ToolsSide::Right };
+                }
+            });
+        });
     match rail.request {
         Some(RailRequest::Open(panel)) => app.choose_right_panel(Some(panel)),
         Some(RailRequest::Close(_)) => app.choose_right_panel(None),
