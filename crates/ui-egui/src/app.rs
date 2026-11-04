@@ -681,14 +681,16 @@ impl eframe::App for PdfCraftApp {
         }
         chrome::tab_strip(self, ui);
         chrome::mode_bar(self, ui);
-        if self.active.is_some() {
-            chrome::page_bar(self, ui);
-        }
         // Whichever way another tab came to the front, it shows instead of the expanded view.
         if self.all_tools_full && self.all_tools_tab != self.shown_tab() {
             self.all_tools_full = false;
         }
         side_panels::show(self, ui);
+        // Under the document only, between the side panels (as Acrobat's page controls), so the
+        // panels keep the window's full height.
+        if self.active.is_some() {
+            chrome::page_bar(self, ui);
+        }
         let t = theme::Tokens::get(&ctx);
         if self.assistant_open {
             egui::Panel::right("claude_pane")

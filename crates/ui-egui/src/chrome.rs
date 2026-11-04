@@ -598,6 +598,26 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
 }
 
+/// The size of the page bar's page and zoom fields: the same for both (as upstream's rail fields),
+/// wide enough for "6400%", the largest zoom, in the 12 pt font.
+const BAR_FIELD_SIZE: [f32; 2] = [44.0, 22.0];
+/// Padding inside the page bar's page and zoom fields.
+const BAR_FIELD_MARGIN: egui::Vec2 = egui::vec2(1.0, 4.0);
+
+/// A field the page bar can type in: boxed, and the same size whatever it holds, so the page and
+/// zoom fields match. Sized outright: a text field is at least a control wide.
+fn bar_field(ui: &mut egui::Ui, t: &Tokens, edit: egui::TextEdit<'_>) -> egui::Response {
+    egui::Frame::NONE
+        .fill(t.field)
+        .stroke(Stroke::new(1.0, t.border))
+        .corner_radius(CornerRadius::same(5))
+        .show(ui, |ui| {
+            ui.spacing_mut().interact_size.x = 0.0;
+            ui.add_sized(BAR_FIELD_SIZE, edit)
+        })
+        .inner
+}
+
 /// The page bar along the bottom of the window: page navigation on the left (view history, the
 /// page box with the page position, previous / next page), zoom and page display on the right.
 pub fn page_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
@@ -641,16 +661,11 @@ pub fn page_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 let edit = egui::TextEdit::singleline(&mut view.page_input)
                     .id(page_input_id)
-                    .desired_width(40.0)
-                    .align(egui::Align2::CENTER_TOP)
+                    .align(egui::Align2::CENTER_CENTER)
                     .font(theme::medium(12.0))
-                    .margin(vec2(2.0, 3.0));
-                let r = egui::Frame::NONE
-                    .fill(t.field)
-                    .stroke(Stroke::new(1.0, t.border))
-                    .corner_radius(CornerRadius::same(5))
-                    .show(ui, |ui| ui.add(edit))
-                    .inner
+                    .frame(egui::Frame::NONE)
+                    .margin(BAR_FIELD_MARGIN);
+                let r = bar_field(ui, &t, edit)
                     .on_hover_text(tl!("Current page — type a page number or label (such as iv) and press Enter"))
                     .accessible_name(tl!("Current page"));
                 if r.lost_focus() {
@@ -706,13 +721,12 @@ pub fn page_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     let mut typed = ui.data(|d| d.get_temp::<String>(draft)).unwrap_or_else(|| format!("{:.0}%", view.zoom * 100.0));
                     let edit = egui::TextEdit::singleline(&mut typed)
                         .id(id)
-                        .desired_width(44.0)
-                        .align(egui::Align2::CENTER_TOP)
+                        .align(egui::Align2::CENTER_CENTER)
                         .font(theme::medium(12.0))
-                        .text_color(t.text_muted)
+                        .text_color(t.text)
                         .frame(egui::Frame::NONE)
-                        .margin(vec2(2.0, 2.0));
-                    let r = ui.add(edit).on_hover_text(tl!("Zoom — type a percentage and press Enter"));
+                        .margin(BAR_FIELD_MARGIN);
+                    let r = bar_field(ui, &t, edit).on_hover_text(tl!("Zoom — type a percentage and press Enter"));
                     ui.ctx().accesskit_node_builder(id, |node| node.set_label(tl!("Zoom")));
                     ui.ctx().accesskit_node_builder(id, |node| node.set_label(tl!("Zoom")));
                     if r.gained_focus() {

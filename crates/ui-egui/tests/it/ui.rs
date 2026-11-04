@@ -1753,7 +1753,7 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
             ToolsSide::Left => "Dock navigation rail on Right",
         };
         let dock = rail(&h, dock_label);
-        assert!(dock.bottom() <= page.top(), "dock button {dock:?} above the page bar");
+        assert!(dock.top() >= 0.0 && dock.bottom() <= height, "dock button {dock:?} inside the window");
         let first = rail(&h, "Comments");
         h.event(egui::Event::PointerMoved(first.center()));
         for _ in 0..8 {

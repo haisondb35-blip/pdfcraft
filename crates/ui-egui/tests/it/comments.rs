@@ -3223,6 +3223,9 @@ fn hotbar_settings_layout_and_side_controls_are_reachable_by_label() {
     let saved: serde_json::Value = serde_json::from_str(&h.state().persist()).unwrap();
     assert_eq!(saved["hotbar"]["dock"], "right");
     assert_eq!(saved["hotbar"]["vertical"], true, "docking at the side lays the bar out vertically");
+    // The docked bar takes its new height over a few frames and the settings card follows it
+    // (brian-local's page bar makes that take a couple more): click Float once it has settled.
+    h.run_steps(8);
     h.get_by_role_and_label(Role::RadioButton, "Float").click();
     h.run_steps(3);
     let saved: serde_json::Value = serde_json::from_str(&h.state().persist()).unwrap();
