@@ -50,6 +50,7 @@ pdfcraft-a11y = { path = "crates/a11y", version = "0.18.2" }
 pdfcraft-oracle = { path = "crates/oracle", version = "0.18.2" }
 pdfcraft-testkit = { path = "crates/testkit", version = "0.18.2" }
 pdfcraft-ocr = { path = "crates/ocr", version = "0.18.2" }
+pdfcraft-scan = { path = "crates/scan", version = "0.18.2" }
 pdfcraft-js = { path = "crates/js", version = "0.18.2" }
 pdfcraft-compare = { path = "crates/compare", version = "0.18.2" }
 pdfcraft-preflight = { path = "crates/preflight", version = "0.18.2" }

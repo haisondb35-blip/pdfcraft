@@ -6,7 +6,7 @@
 
 use std::collections::HashSet;
 
-use pdfcraft_cos::{Document, Object, Stream};
+use pdfcraft_cos::{Document, ImageBudget, Object, Stream};
 
 use crate::OptimizeError;
 use crate::images::{components, decodable, page_resources, pixels};
@@ -31,7 +31,7 @@ fn convert_pixel(rgb: &[u8], gray: bool, out: &mut Vec<u8>) {
 }
 
 /// The converted image, or `None` to leave it.
-fn convert_image(doc: &Document, s: &Stream, gray: bool) -> Option<Stream> {
+fn convert_image(doc: &Document, s: &Stream, gray: bool, budget: &mut ImageBudget) -> Option<Stream> {
     if s.dict.get(b"Subtype").and_then(Object::as_name) != Some(b"Image".as_slice()) || matches!(s.dict.get(b"ImageMask"), Some(Object::Bool(true))) {
         return None;
     }
@@ -47,7 +47,7 @@ fn convert_image(doc: &Document, s: &Stream, gray: bool) -> Option<Stream> {
     if !dct && s.dict.int(b"BitsPerComponent") != Some(8) {
         return None;
     }
-    let px = pixels(doc, s, 3)?;
+    let px = pixels(doc, s, 3, budget)?;
     let mut out = Vec::with_capacity(px.len() / 3 * if gray { 1 } else { 4 });
     for p in px.as_chunks::<3>().0 {
         convert_pixel(p, gray, &mut out);
@@ -67,6 +67,8 @@ pub fn convert_page_images(doc: &mut Document, pages: &[usize], gray: bool) -> R
     let all = pdfcraft_model::pages(doc);
     let mut seen = HashSet::new();
     let mut changed = 0_usize;
+    // One decoding allowance for the whole conversion, as upstream's image passes have.
+    let mut budget = ImageBudget::new(doc);
     for &p in pages {
         let Some(page) = all.get(p) else { continue };
         let Some(resources) = page_resources(doc, page.obj) else { continue };
@@ -77,7 +79,7 @@ pub fn convert_page_images(doc: &mut Document, pages: &[usize], gray: bool) -> R
                 continue;
             }
             let new = match &*doc.get(r) {
-                Object::Stream(s) => convert_image(doc, s, gray),
+                Object::Stream(s) => convert_image(doc, s, gray, &mut budget),
                 _ => None,
             };
             if let Some(new) = new {
