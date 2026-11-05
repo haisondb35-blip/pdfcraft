@@ -1,0 +1,95 @@
+# The owner's Windows build (fork only), so the laptop doesn't compile: the workspace tests, then
+# the app's x64 MSI and portable zip, unsigned, with craft-fonts and craft-i18n as the release
+# build has them, plus this branch's own translation rows (i18n-local/). Run it from the Actions
+# tab or with `gh workflow run windows-build.yml --ref brian-local`; the MSI is the run's artifact
+# (and the test log, which the MSI does not wait on: a failing test is reported, not fatal).
+name: Windows build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: Run the workspace tests first
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  msi:
+    runs-on: windows-2025
+    timeout-minutes: 360
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out craft-fonts at the release pin
+        run: |
+          ref=$(grep -oE 'craft-fonts-ref:[[:space:]]*[0-9a-f]{40}' .github/workflows/release.yml | grep -oE '[0-9a-f]{40}' | head -1)
+          git init -q craft-fonts
+          git -C craft-fonts fetch -q --depth 1 https://github.com/storytold/craft-fonts.git "$ref"
+          git -C craft-fonts checkout -q FETCH_HEAD
+          echo "CRAFT_FONTS_DIR=$GITHUB_WORKSPACE/craft-fonts" >> "$GITHUB_ENV"
+      - name: Check out craft-i18n with this branch's own rows
+        run: |
+          [ -f craft-i18n.rev ] || exit 0
+          rev=$(tr -d '[:space:]' < craft-i18n.rev)
+          git init -q craft-i18n
+          git -C craft-i18n fetch -q --depth 1 https://github.com/storytold/craft-i18n.git "$rev"
+          git -C craft-i18n checkout -q FETCH_HEAD
+          app="${GITHUB_REPOSITORY#*/}"
+          python - "$app" <<'EOF'
+          import glob, os, sys
+          app = sys.argv[1]
+          key = lambda l: tuple(l.split('\t')[:2]) if len(l.split('\t')) >= 3 and not l.startswith('#') else None
+          for f in glob.glob('i18n-local/*.tsv'):
+              target = os.path.join('craft-i18n', 'locales', os.path.basename(f)[:-4], app + '.tsv')
+              if not os.path.exists(target):
+                  continue
+              have = {key(l) for l in open(target, encoding='utf-8').read().split('\n')}
+              add = [l for l in open(f, encoding='utf-8').read().split('\n') if key(l) and key(l) not in have]
+              if add:
+                  open(target, 'a', encoding='utf-8').write('\n' + '\n'.join(add) + '\n')
+              print(target, len(add))
+          EOF
+          echo "CRAFT_I18N_DIR=$GITHUB_WORKSPACE/craft-i18n" >> "$GITHUB_ENV"
+          echo "CRAFT_I18N_REQUIRED=1" >> "$GITHUB_ENV"
+      - name: WiX v5
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2
+          wix extension add -g WixToolset.Util.wixext/5.0.2
+      - name: Tests
+        if: ${{ inputs.tests }}
+        continue-on-error: true
+        run: |
+          extra=""
+          # FilmCraft's NVENC test files don't build on Windows (upstream code).
+          [ "${GITHUB_REPOSITORY#*/}" = filmcraft ] && extra="--exclude filmcraft-platform"
+          mkdir -p dist
+          set -o pipefail
+          cargo test --workspace $extra --no-fail-fast 2>&1 | tee dist/tests.log
+      - name: Test summary
+        if: ${{ inputs.tests && always() }}
+        run: |
+          [ -f dist/tests.log ] || exit 0
+          grep -E "test result" dist/tests.log | awk '{p+=$4; f+=$6} END {print "passed", p, "failed", f}' | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -E "^test .* FAILED" dist/tests.log | head -40 | tee -a "$GITHUB_STEP_SUMMARY" || true
+      - name: Build and package
+        shell: pwsh
+        env:
+          DIST: ${{ github.workspace }}/dist
+        run: ./packaging/windows/package.ps1 -Arch x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-windows
+          path: |
+            dist/*.msi
+            dist/tests.log
+          if-no-files-found: error
+          retention-days: 14
