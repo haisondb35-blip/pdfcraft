@@ -64,6 +64,8 @@ pdfcraft-engine = { path = "crates/engine", version = "0.18.2" }
 pdfcraft-platform = { path = "crates/platform", version = "0.18.2" }
 pdfcraft-ui-egui = { path = "crates/ui-egui", version = "0.18.2" }
 pdfcraft-automation = { path = "crates/automation", version = "0.18.2", default-features = false }
+pdfcraft-prc = { path = "crates/prc", version = "0.18.2" }
+pdfcraft-prc-render = { path = "crates/prc-render", version = "0.18.2" }
 
 # pdf
 hayro = "0.7.1"
