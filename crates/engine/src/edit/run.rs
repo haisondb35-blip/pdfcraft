@@ -717,7 +717,8 @@ pub(crate) fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut E
         }
         Edit::ConvertColors { pages, target } => {
             let colours = pdfcraft_edit::convert_colors(doc, pages, *target)?;
-            let images = pdfcraft_optimize::convert_page_images(doc, pages, *target == crate::ColorTarget::Gray).map_err(|e| EditError::Invalid(e.to_string()))?;
+            let images = pdfcraft_optimize::convert_page_images(doc, pages, *target == crate::ColorTarget::Gray)
+                .map_err(|e| EditError::Invalid(e.to_string()))?;
             if colours == 0 && images == 0 {
                 return Err(EditError::Invalid(
                     "nothing to convert: the chosen pages have no device colours or RGB images outside the target".into(),

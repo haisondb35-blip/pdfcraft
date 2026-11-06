@@ -21,7 +21,14 @@ impl PdfCraftApp {
                 None => self.attach_control(ctx),
             };
             match control::serve(client) {
-                Ok(end) => self.assistant.set_channel(end.port, end.token),
+                Ok(end) => {
+                    self.assistant.set_channel(end.port, end.token);
+                    // Each file's conversation with the assistant is remembered, in the folder
+                    // all the Craft apps share (ArtCraft/AI).
+                    if self.assistant.memory.is_none() {
+                        self.assistant.use_memory(crate::assistant::Store::shared());
+                    }
+                }
                 Err(e) => self.notify_error(format!("Claude: couldn't open a control channel ({e})")),
             }
         }

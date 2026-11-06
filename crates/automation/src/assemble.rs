@@ -151,7 +151,6 @@ impl Automation {
         self.apply(a, Edit::FixHairlines { pages, threshold, replace })
     }
 
-
     pub(crate) fn page_set_box(&mut self, a: &Args) -> Result<Value> {
         use pdfcraft_engine::{BoxSpec, PageBox};
         let doc = self.doc(a)?;
@@ -204,7 +203,6 @@ impl Automation {
         }
         self.apply(a, Edit::InsertBlankPage { at, width, height })
     }
-
 
     pub(crate) fn insert_file(&mut self, a: &Args) -> Result<Value> {
         let at = self.position(a, "at")?;

@@ -6443,7 +6443,6 @@ fn large_pictures_are_smoothed_when_zoomed_in_and_small_ones_are_not() {
     assert_eq!(mid_tones(&small), 0, "a small image keeps nearest-neighbour edges");
 }
 
-
 /// Issue #624: an image drawn below its source resolution was pre-resampled with Catmull-Rom
 /// even when `/Interpolate` was false (or absent, whose PDF default is false). That blends
 /// neighboring samples before the renderer's later non-interpolating image sampler sees them,

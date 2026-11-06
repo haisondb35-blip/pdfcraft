@@ -18,6 +18,9 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 
+mod memory;
+pub use memory::{Memory, Store};
+
 use crate::control::ControlRequest;
 
 /// Starts a control channel for the pane: given the token requests must carry, the port it
@@ -195,6 +198,16 @@ pub const REFUSED_TOOLS: &[&str] =
 
 pub struct Assistant {
     pub messages: Vec<Msg>,
+    /// Where each file\'s conversation is remembered (the desktop app sets it; none in tests).
+    pub memory: Option<Store>,
+    /// The document the conversation is about: its identity in this run, and its file.
+    doc: Option<(u64, Option<String>)>,
+    /// Conversations about documents not saved yet, by identity, while this window runs.
+    untitled: std::collections::HashMap<u64, Memory>,
+    /// The question with a recap, asked again without the conversation id if continuing fails.
+    retry: Option<String>,
+    /// Whether the answer in progress has said or done anything.
+    answered: bool,
     pub input: String,
     /// The conversation being continued.
     pub session: Option<String>,
@@ -225,6 +238,11 @@ impl Default for Assistant {
     fn default() -> Self {
         Assistant {
             messages: Vec::new(),
+            memory: None,
+            doc: None,
+            untitled: std::collections::HashMap::new(),
+            retry: None,
+            answered: false,
             input: String::new(),
             session: None,
             running: None,
@@ -248,7 +266,10 @@ impl Default for Assistant {
 impl Drop for Assistant {
     fn drop(&mut self) {
         self.stop();
-        if let Some(d) = &self.work_dir {
+        // The remembered conversations\' folder stays; a temporary one goes.
+        if self.memory.is_none()
+            && let Some(d) = &self.work_dir
+        {
             let _ = std::fs::remove_dir_all(d);
         }
     }
@@ -272,6 +293,8 @@ impl Assistant {
         self.stop();
         self.messages.clear();
         self.session = None;
+        self.retry = None;
+        self.remember();
     }
 
     /// Stop the answer in progress.
@@ -298,7 +321,10 @@ impl Assistant {
         let dir = match &self.work_dir {
             Some(d) => d.clone(),
             None => {
-                let d = std::env::temp_dir().join(format!("pdfcraft-claude-{}", std::process::id()));
+                let d = self
+                    .memory
+                    .as_ref()
+                    .map_or_else(|| std::env::temp_dir().join(format!("pdfcraft-claude-{}", std::process::id())), Store::work_dir);
                 std::fs::create_dir_all(&d).map_err(|e| format!("couldn't create {}: {e}", d.display()))?;
                 self.work_dir = Some(d.clone());
                 d
@@ -319,9 +345,15 @@ impl Assistant {
         }
         self.input.clear();
         self.last_note = None;
+        // Earlier messages without a conversation to continue (another computer, another
+        // assistant, or it is gone): they travel with the question.
+        let recap = memory::recap(&self.messages).map(|r| memory::with_recap(&r, &prompt));
+        self.retry = if self.session.is_some() { recap.clone() } else { None };
+        let asked = if self.session.is_none() { recap.unwrap_or_else(|| prompt.clone()) } else { prompt.clone() };
+        self.answered = false;
         self.push(Role::User, prompt.clone());
         let launched = self.prepare(ctx).and_then(|(work_dir, mcp_config, server)| {
-            (self.launcher)(Launch { prompt, session: self.session.clone(), mcp_config, work_dir, provider: self.provider, server })
+            (self.launcher)(Launch { prompt: asked, session: self.session.clone(), mcp_config, work_dir, provider: self.provider, server })
         });
         match launched {
             Ok(r) => self.running = Some(r),
@@ -335,8 +367,12 @@ impl Assistant {
         if provider == self.provider {
             return;
         }
-        self.new_chat();
+        // A new conversation (one assistant can't continue the other's); the messages stay and
+        // go to the new one as a recap.
+        self.stop();
+        self.session = None;
         self.provider = provider;
+        self.remember();
         self.login = Login::Unchecked;
         self.check_login();
     }
@@ -434,6 +470,7 @@ impl Assistant {
     /// Take in what Claude has reported since the last frame.
     pub fn poll(&mut self, ctx: &egui::Context) {
         let Some(run) = &self.running else { return };
+        let mut retry = None;
         let mut events = Vec::new();
         let mut gone = false;
         loop {
@@ -451,18 +488,28 @@ impl Assistant {
             match e {
                 Event::Session(id) => self.session = Some(id),
                 Event::Text(t) => {
+                    self.answered = true;
                     let first = t.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or_default();
                     let short: String = first.chars().take(140).collect();
                     self.work(format!("“{short}”"));
                     self.last_note = Some(t);
                 }
-                Event::Step(s) => self.work(s),
+                Event::Step(s) => {
+                    self.answered = true;
+                    self.work(s);
+                }
                 Event::Answer(a) => {
+                    self.answered = true;
                     self.last_note = None;
                     self.push(Role::Claude, a);
                 }
                 Event::Done(err) => {
                     match err {
+                        // The remembered conversation couldn't be continued: ask again,
+                        // once, with the recap.
+                        Some(_) if !self.answered && self.retry.is_some() => {
+                            retry = self.retry.take();
+                        }
                         Some(e) => self.push(Role::Error, e),
                         // Finished without a reply of its own: what it said last is the reply.
                         None => {
@@ -477,9 +524,91 @@ impl Assistant {
         }
         if done {
             self.running = None;
+            self.retry = None;
+            if let Some(prompt) = retry {
+                self.session = None;
+                self.relaunch(ctx, prompt);
+            }
+            self.remember();
         } else {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
+    }
+
+    /// Ask again (the question is already on screen).
+    fn relaunch(&mut self, ctx: &egui::Context, prompt: String) {
+        self.answered = false;
+        let launched = self.prepare(ctx).and_then(|(work_dir, mcp_config, server)| {
+            (self.launcher)(Launch { prompt, session: None, mcp_config, work_dir, provider: self.provider, server })
+        });
+        match launched {
+            Ok(r) => self.running = Some(r),
+            Err(e) => self.push(Role::Error, e),
+        }
+    }
+
+    fn current(&self) -> Memory {
+        Memory { messages: self.messages.clone(), provider: Some(self.provider.key().to_string()), session: self.session.clone() }
+    }
+
+    /// Keep the conversation for the document it is about.
+    fn remember(&mut self) {
+        let m = self.current();
+        match &self.doc {
+            Some((_, Some(path))) => {
+                if let Some(store) = &self.memory {
+                    store.save(path, &m);
+                }
+            }
+            Some((id, None)) => {
+                self.untitled.insert(*id, m);
+            }
+            None => {}
+        }
+    }
+
+    /// The conversation for the document on screen: `id` tells documents apart in this run,
+    /// `path` is its file (none until it is saved). A document saved under a new name keeps its
+    /// conversation; another document brings back its own (remembered on this computer, or
+    /// `embedded` in its file), or starts empty. Not while an answer is coming.
+    pub fn follow_document(&mut self, id: u64, path: Option<&str>, embedded: Option<&Value>) {
+        if self.busy() || self.doc.as_ref().is_some_and(|(i, p)| *i == id && p.as_deref() == path) {
+            return;
+        }
+        let same = self.doc.as_ref().is_some_and(|(i, _)| *i == id);
+        if !same {
+            self.remember();
+        }
+        let restored = if same {
+            None
+        } else if let Some(p) = path {
+            let mut m = self.memory.as_ref().map(|s| s.load(p)).unwrap_or_default();
+            if m.is_empty()
+                && let Some(v) = embedded
+            {
+                m = Memory::from_json(v);
+            }
+            Some(m)
+        } else {
+            Some(self.untitled.remove(&id).unwrap_or_default())
+        };
+        if same && let Some((_, None)) = &self.doc {
+            self.untitled.remove(&id);
+        }
+        self.doc = Some((id, path.map(str::to_string)));
+        if let Some(m) = restored {
+            self.messages = m.messages;
+            self.input.clear();
+            self.retry = None;
+            // An id from another assistant (or none) can't continue it here: the recap will.
+            self.session = m.session.filter(|_| m.provider.as_deref() == Some(self.provider.key()));
+        }
+        self.remember();
+    }
+
+    /// The conversation as a file embeds it (without this computer's conversation id).
+    pub fn portable(&self) -> Option<Value> {
+        (!self.messages.is_empty()).then(|| self.current().to_json(true))
     }
 }
 
@@ -1086,7 +1215,12 @@ pub fn tool(app: &mut crate::PdfCraftApp, command: &str) -> bool {
 
 pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());
+    // The conversation follows the document on screen (each file keeps its own).
+    let doc = app.active.and_then(|i| app.views.get(i)).map(|v| (v.id.0, app.session.get(v.id).and_then(|d| d.path.clone())));
     let a = &mut app.assistant;
+    if let Some((id, path)) = doc {
+        a.follow_document(id, path.as_deref(), None);
+    }
     a.poll(ui.ctx());
     a.poll_login();
     if a.login == Login::Unchecked {
@@ -1358,7 +1492,10 @@ mod tests {
         assert!(a.contains(&"approval_policy=\"never\"".to_string()));
         assert!(a.contains(&r#"mcp_servers.pdfcraft.command="C:\\Program Files\\App\\pdfcraft-cli.exe""#.to_string()), "{a:?}");
         assert!(a.contains(&r#"mcp_servers.pdfcraft.args=["mcp","--app","4242"]"#.to_string()), "{a:?}");
-        assert!(a.contains(&r#"mcp_servers.pdfcraft.default_tools_approval_mode="approve""#.to_string()), "the app's tools may change the document: {a:?}");
+        assert!(
+            a.contains(&r#"mcp_servers.pdfcraft.default_tools_approval_mode="approve""#.to_string()),
+            "the app's tools may change the document: {a:?}"
+        );
         assert!(a.contains(&r#"mcp_servers.pdfcraft.env={PDFCRAFT_CONTROL_TOKEN="t\"k"}"#.to_string()), "{a:?}");
         assert_eq!(a.last().map(String::as_str), Some("-"), "the prompt comes on stdin");
         assert!(!a.contains(&"resume".to_string()));
@@ -1416,7 +1553,11 @@ mod tests {
         a.session = Some("s".into());
         a.messages.push(Msg { role: Role::User, text: "hi".into() });
         a.set_provider(Provider::Codex);
-        assert_eq!((a.provider, a.session.as_deref(), a.messages.len()), (Provider::Codex, None, 0));
+        assert_eq!(
+            (a.provider, a.session.as_deref(), a.messages.len()),
+            (Provider::Codex, None, 1),
+            "the messages stay, as the new conversation's recap"
+        );
         assert_eq!(a.login, Login::Checking);
     }
 
