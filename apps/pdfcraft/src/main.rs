@@ -495,6 +495,9 @@ fn app_creator<'a>(
                 log::warn!("--{k} {v}: {e}");
             }
         }
+        // Each file's conversation with the assistant is remembered, in the folder all the Craft
+        // apps share (ArtCraft/AI).
+        app.assistant.use_memory(pdfcraft_ui_egui::assistant::Store::shared());
         Ok(Box::new(app))
     })
 }

@@ -210,12 +210,239 @@ impl super::Assistant {
     /// Remember conversations in `store` from now on; the document on screen brings its own back
     /// when nothing has been asked yet.
     pub fn use_memory(&mut self, store: Option<Store>) {
+        let on = store.as_ref().is_some_and(Store::save_with_file);
+        if let Ok(mut s) = self.shelf.lock() {
+            s.on = on;
+        }
         self.memory = store;
         if self.messages.is_empty() && !self.busy() {
             self.doc = None;
         }
     }
+
+    /// Opens this window's channel and lists it for the other Craft apps' assistants, once, when
+    /// conversations are remembered (the desktop app): so another app's assistant can read and
+    /// work on this one's document when the person asks it to.
+    pub fn share(&mut self, ctx: &egui::Context) {
+        static TRIED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if self.memory.is_none() || TRIED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        let _ = self.prepare(ctx);
+    }
+
+    /// Joins the other Craft apps open on this computer: lists this window's server for them, and
+    /// adds theirs to `config` (an MCP configuration with this app's one server).
+    fn join_peers(&self, config: &mut Value) {
+        let (Some(store), Some(port)) = (&self.memory, self.port) else { return };
+        let Some(servers) = config.get_mut("mcpServers").and_then(Value::as_object_mut) else { return };
+        let Some((own, entry)) = servers.iter().next().map(|(k, v)| (k.clone(), v.clone())) else { return };
+        store.register(&own, port, &entry);
+        for (name, server) in store.peers(&own) {
+            servers.entry(name).or_insert(server);
+        }
+    }
 }
+
+/// The conversations a save writes into their files (Save chat with file): kept up to date by
+/// the pane, read by the file writer the desktop app hooks in, on another thread.
+#[derive(Debug, Default)]
+pub struct Shelf {
+    /// Save chat with file is on.
+    pub on: bool,
+    chats: std::collections::HashMap<String, Value>,
+    /// The conversation on screen: for a file saved for the first time.
+    active: Option<Value>,
+}
+
+impl Shelf {
+    /// What a save of `path` writes into the file: its conversation, or for a new file the one on
+    /// screen. None with the option off (and a file that has one loses it).
+    pub fn chat_for(&self, path: &str) -> Option<Value> {
+        if !self.on {
+            return None;
+        }
+        self.chats.get(&normal(path)).cloned().or_else(|| if Path::new(path).exists() { None } else { self.active.clone() })
+    }
+
+    fn put(&mut self, path: Option<&str>, chat: Option<Value>) {
+        if let Some(p) = path {
+            match &chat {
+                Some(c) => {
+                    self.chats.insert(normal(p), c.clone());
+                }
+                None => {
+                    self.chats.remove(&normal(p));
+                }
+            }
+        }
+        self.active = chat;
+    }
+}
+
+impl Store {
+    fn settings(&self) -> Value {
+        std::fs::read(self.dir.join("settings.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_else(|| json!({}))
+    }
+
+    /// Save chat with file, as last chosen in any Craft app (off at first).
+    pub fn save_with_file(&self) -> bool {
+        self.settings().get("saveWithFile").and_then(Value::as_bool).unwrap_or(false)
+    }
+
+    pub fn set_save_with_file(&self, on: bool) {
+        let mut v = self.settings();
+        v["saveWithFile"] = json!(on);
+        if std::fs::create_dir_all(&self.dir).is_ok() {
+            let _ = std::fs::write(self.dir.join("settings.json"), v.to_string());
+        }
+    }
+}
+
+impl super::Assistant {
+    /// Hands the conversation to the file writer (see [`Shelf`]).
+    fn shelve(&self) {
+        let path = self.doc.as_ref().and_then(|(_, p)| p.as_deref());
+        if let Ok(mut s) = self.shelf.lock() {
+            s.put(path, self.portable());
+        }
+    }
+
+    /// Whether this app can save the conversation in its files (it reads them back too).
+    pub fn can_save_with_file(&self) -> bool {
+        self.memory.is_some() && self.embedded_reader.is_some()
+    }
+
+    pub fn save_with_file(&self) -> bool {
+        self.shelf.lock().is_ok_and(|s| s.on)
+    }
+
+    /// Turns Save chat with file on or off, for every Craft app.
+    pub fn set_save_with_file(&mut self, on: bool) {
+        if let Some(store) = &self.memory {
+            store.set_save_with_file(on);
+        }
+        if let Ok(mut s) = self.shelf.lock() {
+            s.on = on;
+        }
+        self.shelve();
+    }
+}
+
+/// How long a listed app has to answer before it counts as closed.
+const PEER_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
+
+impl Store {
+    fn apps(&self) -> PathBuf {
+        self.dir.join("apps")
+    }
+
+    /// Lists this window's MCP server (`name`, e.g. "cadcraft") for the other Craft apps.
+    pub fn register(&self, name: &str, port: u16, server: &Value) {
+        let dir = self.apps();
+        if std::fs::create_dir_all(&dir).is_ok() {
+            let f = dir.join(format!("{name}-{}.json", std::process::id()));
+            let _ = std::fs::write(f, json!({"name": name, "port": port, "server": server}).to_string());
+        }
+    }
+
+    /// Takes this process's windows off the list (the app is closing).
+    pub fn leave(&self) {
+        let suffix = format!("-{}.json", std::process::id());
+        if let Ok(rd) = std::fs::read_dir(self.apps()) {
+            for e in rd.flatten() {
+                if e.file_name().to_string_lossy().ends_with(&suffix) {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
+        }
+    }
+
+    /// The other Craft apps open now (not `own`): each one's name and MCP server. One that no
+    /// longer answers is taken off the list.
+    pub fn peers(&self, own: &str) -> Vec<(String, Value)> {
+        let mut out: Vec<(String, Value)> = Vec::new();
+        let Ok(rd) = std::fs::read_dir(self.apps()) else { return out };
+        let mut files: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect();
+        files.sort();
+        for f in files {
+            let Some(v) = std::fs::read(&f).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()) else { continue };
+            let (Some(name), Some(port), Some(server)) =
+                (v.get("name").and_then(Value::as_str), v.get("port").and_then(Value::as_u64), v.get("server"))
+            else {
+                continue;
+            };
+            let Ok(port) = u16::try_from(port) else { continue };
+            if name == own || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+                continue;
+            }
+            let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+            if std::net::TcpStream::connect_timeout(&addr, PEER_TIMEOUT).is_err() {
+                let _ = std::fs::remove_file(&f);
+                continue;
+            }
+            // Two windows of one app: `cadcraft`, `cadcraft_2`…
+            let mut key = name.to_string();
+            let mut k = 2;
+            while out.iter().any(|(n, _)| *n == key) {
+                key = format!("{name}_{k}");
+                k += 1;
+            }
+            out.push((key, server.clone()));
+        }
+        out
+    }
+}
+
+/// The servers an MCP configuration file names.
+fn servers_in(config: &Path) -> Vec<(String, Value)> {
+    std::fs::read(config)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .and_then(|v| v.get("mcpServers").and_then(Value::as_object).map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()))
+        .unwrap_or_default()
+}
+
+/// Claude Code's `--allowedTools`: this app's tools and the other Craft apps' in the
+/// configuration.
+pub fn allow_peers(args: &mut [String], config: &Path) {
+    let names = servers_in(config);
+    if names.len() < 2 {
+        return;
+    }
+    if let Some(a) = args.iter_mut().find(|a| a.starts_with("mcp__")) {
+        *a = names.iter().map(|(n, _)| format!("mcp__{n}")).collect::<Vec<_>>().join(",");
+    }
+}
+
+/// Codex's `-c` settings for the other Craft apps' servers in the configuration (not `own`'s).
+pub fn codex_peer_args(config: &Path, own: &str) -> Vec<String> {
+    let mut a = Vec::new();
+    for (name, s) in servers_in(config) {
+        if name == own {
+            continue;
+        }
+        let Some(command) = s.get("command").and_then(Value::as_str) else { continue };
+        let args: Vec<String> =
+            s.get("args").and_then(Value::as_array).map(|x| x.iter().filter_map(|v| v.as_str().map(super::toml_str)).collect()).unwrap_or_default();
+        a.push("-c".into());
+        a.push(format!("mcp_servers.{name}.command={}", super::toml_str(command)));
+        a.push("-c".into());
+        a.push(format!("mcp_servers.{name}.args=[{}]", args.join(",")));
+        a.push("-c".into());
+        a.push(format!("mcp_servers.{name}.default_tools_approval_mode=\"approve\""));
+        if let Some(env) = s.get("env").and_then(Value::as_object).filter(|e| !e.is_empty()) {
+            let pairs: Vec<String> = env.iter().filter_map(|(k, v)| Some(format!("{k}={}", super::toml_str(v.as_str()?)))).collect();
+            a.push("-c".into());
+            a.push(format!("mcp_servers.{name}.env={{{}}}", pairs.join(",")));
+        }
+    }
+    a
+}
+
+/// Added to the assistant's instructions: the other Craft apps may be there too.
+pub const PEERS_NOTE: &str = " Other Craft apps open on this computer (GridCraft, WordCraft, DeckCraft, PdfCraft, PhotoCraft, VectorCraft, FilmCraft, CadCraft) may be connected too, as tools named after the app: \
+use them when the user asks for another app's data (for example, read the drawing open in CadCraft to build from it), and don't change another app's document unless asked.";
 
 #[cfg(test)]
 mod tests {
@@ -261,6 +488,43 @@ mod tests {
         let odd = json!({"messages": [{"role": "robot", "text": "x"}, {"role": "user"}, 5, {"role": "user", "text": "ok"}]});
         assert_eq!(Memory::from_json(&odd).messages, vec![msg(Role::User, "ok")]);
         assert!(Memory::from_json(&json!("nonsense")).is_empty());
+    }
+
+    #[test]
+    fn open_craft_apps_find_each_other() {
+        let d = scratch("peers");
+        let store = Store::new(&d);
+        let live = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let live_port = live.local_addr().unwrap().port();
+        let dead_port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let server = |app: &str| json!({"type": "stdio", "command": format!("C:/ArtCraft/{app}-cli.exe"), "args": ["mcp", "--connect", "127.0.0.1:1"], "env": {"TOKEN": "t\"1"}});
+        store.register("cadcraft", live_port, &server("cadcraft"));
+        std::fs::write(d.join("apps/wordcraft-1.json"), json!({"name": "wordcraft", "port": dead_port, "server": server("wordcraft")}).to_string())
+            .unwrap();
+        std::fs::write(d.join("apps/bad-2.json"), json!({"name": "a b", "port": live_port, "server": {}}).to_string()).unwrap();
+        let peers = store.peers("gridcraft");
+        assert_eq!(peers.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["cadcraft"]);
+        assert!(!d.join("apps/wordcraft-1.json").exists(), "a closed app leaves the list");
+        assert!(store.peers("cadcraft").is_empty(), "an app is not its own peer");
+        // The configuration with the peer in it: Claude may use both apps' tools, Codex gets both.
+        let config = d.join("mcp.json");
+        std::fs::write(&config, json!({"mcpServers": {"gridcraft": server("gridcraft"), "cadcraft": peers[0].1}}).to_string()).unwrap();
+        let mut args: Vec<String> = ["-p", "--allowedTools", "mcp__gridcraft"].map(String::from).to_vec();
+        allow_peers(&mut args, &config);
+        assert_eq!(args[2], "mcp__gridcraft,mcp__cadcraft");
+        let codex = codex_peer_args(&config, "gridcraft").join(" ");
+        assert!(
+            codex.contains("mcp_servers.cadcraft.command=\"C:/ArtCraft/cadcraft-cli.exe\"") && !codex.contains("mcp_servers.gridcraft"),
+            "{codex}"
+        );
+        assert!(codex.contains(r#"mcp_servers.cadcraft.env={TOKEN="t\"1"}"#), "{codex}");
+        store.leave();
+        assert!(store.peers("gridcraft").is_empty());
+        drop(live);
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

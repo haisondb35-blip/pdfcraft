@@ -270,6 +270,8 @@ pub struct PdfCraftApp {
     /// The Claude pane (View › Claude): shown or not, and its conversation.
     pub assistant_open: bool,
     pub assistant: assistant::Assistant,
+    /// The assistant's channel was opened at start and listed for the other Craft apps.
+    pub(crate) assistant_shared: bool,
     /// The control channel's client once one is attached (the Claude pane serves it too).
     control_client: Option<control::ControlClient>,
     pub(crate) closed_tabs: Vec<String>,

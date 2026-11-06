@@ -75,6 +75,7 @@ impl PdfCraftApp {
             tool_runner: None,
             assistant_open: false,
             assistant: assistant::Assistant::default(),
+            assistant_shared: false,
             control_client: None,
             units: Default::default(),
             blank_paper: crate::paper::Paper::system(),
@@ -467,6 +468,13 @@ impl eframe::App for PdfCraftApp {
         self.ctx = Some(ctx.clone());
         #[cfg(not(target_arch = "wasm32"))]
         self.window_state.repair(ctx);
+        // The assistant's channel, open from the start and listed for the other Craft apps.
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.assistant.memory.is_some() && !self.assistant.has_channel() && !self.assistant_shared {
+            self.assistant_shared = true;
+            self.open_assistant_channel(ctx);
+            self.assistant.share(ctx);
+        }
         self.dialog_epoch();
         // Notices raised outside `ui` (opened files, OS events, the control channel) translate too.
         let lang = i18n::Lang::from_pref(&self.language);
