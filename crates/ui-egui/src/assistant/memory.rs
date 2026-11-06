@@ -233,7 +233,7 @@ impl super::Assistant {
 
     /// Joins the other Craft apps open on this computer: lists this window's server for them, and
     /// adds theirs to `config` (an MCP configuration with this app's one server).
-    fn join_peers(&self, config: &mut Value) {
+    pub(super) fn join_peers(&self, config: &mut Value) {
         let (Some(store), Some(port)) = (&self.memory, self.port) else { return };
         let Some(servers) = config.get_mut("mcpServers").and_then(Value::as_object_mut) else { return };
         let Some((own, entry)) = servers.iter().next().map(|(k, v)| (k.clone(), v.clone())) else { return };
@@ -301,7 +301,7 @@ impl Store {
 
 impl super::Assistant {
     /// Hands the conversation to the file writer (see [`Shelf`]).
-    fn shelve(&self) {
+    pub(super) fn shelve(&self) {
         let path = self.doc.as_ref().and_then(|(_, p)| p.as_deref());
         if let Ok(mut s) = self.shelf.lock() {
             s.put(path, self.portable());
