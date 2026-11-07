@@ -10,6 +10,8 @@ use super::{CliError, stdout_line};
 pub(crate) fn automation(args: &[String]) -> Result<pdfcraft_automation::Automation, String> {
     // `--app PORT`: the tools run in the PdfCraft window listening there (its UI control channel,
     // token in PDFCRAFT_CONTROL_TOKEN), on the documents it shows. The Claude pane starts this.
+    // Only with the MCP server built in (the `mcp` feature).
+    #[cfg(feature = "mcp")]
     if let Some(port) = flag(args, "--app") {
         let port: u16 = port.parse().map_err(|_| format!("--app {port}: not a port number"))?;
         let token = std::env::var("PDFCRAFT_CONTROL_TOKEN")

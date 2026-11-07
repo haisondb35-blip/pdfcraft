@@ -454,7 +454,9 @@ fn redraw(doc: &mut Document, f: &Field, values: &[String], scripts: &mut dyn Sc
         [one] if matches!(f.kind, FieldKind::Text | FieldKind::Combo) => scripting::formatted(doc, f, one, scripts),
         _ => None,
     };
-    let texts: Vec<&str> = values.iter().map(String::as_str).chain(shown.as_deref()).chain(f.options.iter().map(|(_, d)| d.as_str())).collect();
+    // What the person typed or picks from brings Inter in; a Format script's text doesn't (its
+    // dates are printed again in English where the field's fonts can't draw them, #5303).
+    let texts: Vec<&str> = values.iter().map(String::as_str).chain(f.options.iter().map(|(_, d)| d.as_str())).collect();
     ensure_unicode_font(doc, &texts)?;
     let in_place = f.kind == FieldKind::Text && f.has(flags::PASSWORD);
     let mut undrawn = false;

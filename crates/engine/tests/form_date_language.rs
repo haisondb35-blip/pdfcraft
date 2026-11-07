@@ -300,7 +300,7 @@ fn format_scripts_print_dates_in_english_where_the_field_cannot_draw_them() {
 
 /// A Format script's English run is kept when it ran, even where it prints the stored value
 /// again: a Helvetica field storing "18-Oct-26", printed again as `dd-mmm-yy`, showed
-/// "18-????.-26" in Russian. A script that fails keeps what it showed, reported undrawn (#5303).
+/// "18-????.-26" in Russian (#5303). A script that fails keeps what it showed.
 #[test]
 fn an_english_run_that_prints_the_stored_value_is_drawn() {
     let _names = names_lock();
@@ -312,8 +312,10 @@ fn an_english_run_that_prints_the_stored_value_is_drawn() {
     assert!(contains(&helv, b"(18-Oct-26) Tj"), "{}", String::from_utf8_lossy(&helv));
     assert!(!helv.contains(&b'?'), "{}", String::from_utf8_lossy(&helv));
     assert!(pdfcraft_forms::undrawn_fields(&doc).is_empty());
+    // A value typed in Cyrillic is drawn with the embedded Inter (brian-local: Vietnamese and
+    // other scripts in form fields), so nothing is left undrawn.
     fill_with(&mut doc, "fails", "18-окт.-26");
-    assert_eq!(pdfcraft_forms::undrawn_fields(&doc), [("fails".to_string(), 'о')]);
+    assert!(pdfcraft_forms::undrawn_fields(&doc).is_empty());
     use_form_date_language("en");
 }
 
