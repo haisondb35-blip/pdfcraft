@@ -23,6 +23,8 @@ jobs:
         shell: bash
         run: |
           ref=$(grep -oE 'craft-fonts-ref:[[:space:]]*[0-9a-f]{40}' .github/workflows/release.yml | grep -oE '[0-9a-f]{40}' | head -1)
+          # Apps that don't pin craft-fonts (EffectCraft) build with their own fonts.
+          [ -n "$ref" ] || { echo "no craft-fonts pin in release.yml: skipped"; exit 0; }
           git init -q craft-fonts
           git -C craft-fonts fetch -q --depth 1 https://github.com/storytold/craft-fonts.git "$ref"
           git -C craft-fonts checkout -q FETCH_HEAD
