@@ -1347,7 +1347,8 @@ fn printer_marks_dialog_marks_the_current_page() {
     h.run_steps(2);
     assert_eq!(h.state().dialog, Some(Dialog::PrinterMarks));
     h.get_by_label("Color bars");
-    h.get_by_label("Current page").click();
+    // The dialog's radio button (another control is labelled "Current page" too).
+    h.get_by_role_and_label(egui::accesskit::Role::RadioButton, "Current page").click();
     h.run_steps(1);
     h.get_by_label("OK").click();
     h.run_steps(3);
