@@ -69,6 +69,8 @@ jobs:
       - name: Tests
         if: ${{ inputs.tests }}
         continue-on-error: true
+        # A test that hangs (GPU tests on a runner without one) must not hold the MSI back.
+        timeout-minutes: 90
         run: |
           extra=""
           # FilmCraft's NVENC test files don't build on Windows (upstream code).
