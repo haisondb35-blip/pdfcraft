@@ -1337,6 +1337,70 @@ fn preflight_shows_the_print_readiness_report() {
     assert_eq!(h.state().dialog, None);
 }
 
+/// Print production ▸ Add printer marks: the dialog marks the current page only when asked, and
+/// the page grows around its trim box.
+#[test]
+fn printer_marks_dialog_marks_the_current_page() {
+    let mut h = harness();
+    let before = h.state().session.get(h.state().active_ids().unwrap().1).unwrap().page_boxes();
+    assert!(h.state_mut().execute("prepress.marks"));
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, Some(Dialog::PrinterMarks));
+    h.get_by_label("Color bars");
+    h.get_by_label("Current page").click();
+    h.run_steps(1);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    let after = h.state().session.get(h.state().active_ids().unwrap().1).unwrap().page_boxes();
+    assert_eq!(after[0][3], before[0][1], "the trim box is where the page was");
+    assert!(after[0][0][2] > before[0][0][2], "the page grew to hold the marks");
+    assert_eq!(after.get(1), before.get(1), "other pages untouched");
+}
+
+/// Print production ▸ Convert colors: the dialog turns the CMYK printer marks grey (one undoable
+/// step).
+#[test]
+fn convert_colors_dialog_applies() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("prepress.marks"));
+    h.run_steps(2);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert!(h.state_mut().execute("prepress.convert_colors"));
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, Some(Dialog::ConvertColors));
+    h.get_by_label("Grayscale").click();
+    h.run_steps(1);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    let id = h.state().active_ids().unwrap().1;
+    assert_eq!(h.state().session.get(id).unwrap().undo_label().map(|l| l.to_string()).as_deref(), Some("Convert colors"));
+}
+
+/// Print production ▸ Fix hairlines: the dialog thickens the 0.25 pt printer marks under a
+/// 0.5 pt threshold (one undoable step).
+#[test]
+fn fix_hairlines_dialog_applies() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("prepress.marks"));
+    h.run_steps(2);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    h.state_mut().hairlines_draft.threshold = 0.5;
+    h.state_mut().hairlines_draft.replace = 0.5;
+    assert!(h.state_mut().execute("prepress.hairlines"));
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, Some(Dialog::FixHairlines));
+    h.get_by_label("Hairline width threshold");
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    let id = h.state().active_ids().unwrap().1;
+    assert_eq!(h.state().session.get(id).unwrap().undo_label().map(|l| l.to_string()).as_deref(), Some("Fix hairlines"));
+}
+
 #[test]
 fn space_audit_numbers_line_up_under_their_headers() {
     // The percentages were drawn at the dialog's far edge, away from their header and the
