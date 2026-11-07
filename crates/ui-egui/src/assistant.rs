@@ -103,6 +103,7 @@ impl Provider {
 
     /// The PowerShell that installs it with its maker's own installer: Anthropic's for Claude
     /// Code, npm's package for Codex (when Node.js is there). `None`: open the download page.
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn install_script(self) -> Option<&'static str> {
         match self {
             Provider::Claude => Some("irm https://claude.ai/install.ps1 | iex"),
@@ -1370,7 +1371,7 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
         if a.can_save_with_file() {
             let mut on = a.save_with_file();
             let tip = "Also keep this conversation inside the file when it is saved, so it opens with the file on another computer. Off: kept only on this computer.";
-            if ui.checkbox(&mut on, "Save chat with file").on_hover_text(tip).changed() {
+            if ui.add(crate::widgets::checkbox(&mut on, "Save chat with file")).on_hover_text(tip).changed() {
                 a.set_save_with_file(on);
             }
         }
