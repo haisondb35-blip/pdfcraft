@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check out craft-fonts at the release pin
         run: |
-          ref=$(grep -oE 'craft-fonts-ref:[[:space:]]*[0-9a-f]{40}' .github/workflows/release.yml | grep -oE '[0-9a-f]{40}' | head -1)
+          ref=$(grep -oE 'craft-fonts-ref:[[:space:]]*[0-9a-f]{40}' .github/workflows/release.yml | grep -oE '[0-9a-f]{40}' | head -1 || true)
           # Apps that don't pin craft-fonts (EffectCraft) build with their own fonts.
           [ -n "$ref" ] || { echo "no craft-fonts pin in release.yml: skipped"; exit 0; }
           git init -q craft-fonts
