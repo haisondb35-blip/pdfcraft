@@ -10,6 +10,8 @@ rust-version = "1.95"
 workspace = true
 
 [dependencies]
+# The synced cloud folder every Craft app shares (crates/craft-sync): iCloud Drive and the others.
+craft-sync = { path = "../craft-sync" }
 craft-ui = { workspace = true }
 # The menus: native on macOS, an egui bar elsewhere, from one definition (menus.rs).
 craft-menu = { workspace = true }
@@ -52,6 +54,9 @@ unicode-bidi = "0.3"
 skrifa = "0.44"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The assistant's own-key models (OpenAI-compatible, Gemini, Ollama): the same ureq, features and
+# TLS as craft-update, so nothing new is built.
+ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider", "_ring", "gzip", "platform-verifier"] }
 craft-update = { workspace = true }
 # Control-channel tokens.
 getrandom = "0.4"

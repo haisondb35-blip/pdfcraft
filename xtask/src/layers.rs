@@ -29,6 +29,9 @@ impl Class {
 
 /// Every workspace crate (package name without the `pdfcraft-` prefix) and its layer.
 pub const TABLE: &[(&str, Class)] = &[
+    // The synced cloud folder shared by every Craft app (settings, AI memory, earlier versions):
+    // a leaf, used by the UI.
+    ("craft-sync", Class::Layer(0)),
     // L0 foundation (standalone, publishable)
     ("geom", Class::Standalone(0)),
     ("filters", Class::Standalone(0)),

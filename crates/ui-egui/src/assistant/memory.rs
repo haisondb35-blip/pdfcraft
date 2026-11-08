@@ -140,6 +140,17 @@ fn normal(path: &str) -> String {
     if cfg!(windows) { p.replace('/', "\\").to_lowercase() } else { p }
 }
 
+/// The names a file's memory is kept under, the one it is saved under first: for a file in a
+/// cloud folder (iCloud Drive and the others) its name there, the same on every computer that
+/// syncs the folder, so the conversation follows the file; then its path on this computer.
+fn keys(path: &str) -> Vec<String> {
+    let local = normal(path);
+    match craft_sync::cloud::portable_key(&local) {
+        Some(cloud) => vec![cloud, local],
+        None => vec![local],
+    }
+}
+
 impl Store {
     pub fn new(dir: impl Into<PathBuf>) -> Store {
         Store { dir: dir.into() }
@@ -168,35 +179,48 @@ impl Store {
         self.dir.join("work")
     }
 
-    fn file(&self, path: &str) -> PathBuf {
-        self.dir.join("memory").join(format!("{:016x}.json", fnv(&normal(path))))
+    fn file(&self, key: &str) -> PathBuf {
+        self.dir.join("memory").join(format!("{:016x}.json", fnv(key)))
     }
 
     /// The memory of the document at `path` (empty when there is none).
     pub fn load(&self, path: &str) -> Memory {
-        let Ok(b) = std::fs::read(self.file(path)) else { return Memory::default() };
-        let Ok(v) = serde_json::from_slice::<Value>(&b) else { return Memory::default() };
-        // A hash shared by two paths (vanishingly rare) is not the other file's memory.
-        if v.get("path").and_then(Value::as_str).is_some_and(|p| p != normal(path)) {
-            return Memory::default();
+        for key in keys(path) {
+            let Ok(b) = std::fs::read(self.file(&key)) else { continue };
+            let Ok(v) = serde_json::from_slice::<Value>(&b) else { continue };
+            // A hash shared by two paths (vanishingly rare) is not the other file's memory.
+            if v.get("path").and_then(Value::as_str).is_some_and(|p| p != key) {
+                continue;
+            }
+            return Memory::from_json(&v);
         }
-        Memory::from_json(&v)
+        Memory::default()
     }
 
     /// Remembers `m` for `path`; an empty memory forgets it.
     pub fn save(&self, path: &str, m: &Memory) {
-        let f = self.file(path);
+        let keys = keys(path);
+        let Some(key) = keys.first() else { return };
+        // Kept under the first name only: once it is written there, a record under the path on
+        // this computer (from before the file's cloud name was used) goes.
+        let forget_old = || {
+            for old in keys.iter().skip(1) {
+                let _ = std::fs::remove_file(self.file(old));
+            }
+        };
+        let f = self.file(key);
         if m.is_empty() {
             let _ = std::fs::remove_file(&f);
+            forget_old();
             return;
         }
         let mut v = m.to_json(false);
-        v["path"] = json!(normal(path));
+        v["path"] = json!(key);
         if f.parent().is_some_and(|d| std::fs::create_dir_all(d).is_ok()) {
             // Written beside and renamed, so a crash never leaves half a record.
             let tmp = f.with_extension("json.tmp");
-            if std::fs::write(&tmp, v.to_string()).is_ok() {
-                let _ = std::fs::rename(&tmp, &f);
+            if std::fs::write(&tmp, v.to_string()).is_ok() && std::fs::rename(&tmp, &f).is_ok() {
+                forget_old();
             }
         }
     }
@@ -213,6 +237,11 @@ impl super::Assistant {
         let on = store.as_ref().is_some_and(Store::save_with_file);
         if let Ok(mut s) = self.shelf.lock() {
             s.on = on;
+        }
+        // The conversations go to the cloud folder too when syncing is on (in any Craft app):
+        // a thread of its own mirrors this folder every few minutes.
+        if let Some(s) = &store {
+            craft_sync::background::start(s.dir().to_path_buf());
         }
         self.memory = store;
         if self.messages.is_empty() && !self.busy() {
@@ -293,6 +322,19 @@ impl Store {
     pub fn set_save_with_file(&self, on: bool) {
         let mut v = self.settings();
         v["saveWithFile"] = json!(on);
+        if std::fs::create_dir_all(&self.dir).is_ok() {
+            let _ = std::fs::write(self.dir.join("settings.json"), v.to_string());
+        }
+    }
+
+    /// The assistant last chosen in any Craft app (`Provider::key`).
+    pub fn provider_choice(&self) -> Option<String> {
+        self.settings().get("provider").and_then(Value::as_str).map(str::to_string)
+    }
+
+    pub fn set_provider_choice(&self, key: &str) {
+        let mut v = self.settings();
+        v["provider"] = json!(key);
         if std::fs::create_dir_all(&self.dir).is_ok() {
             let _ = std::fs::write(self.dir.join("settings.json"), v.to_string());
         }
@@ -462,6 +504,18 @@ mod tests {
         let d = std::env::temp_dir().join(format!("craft-assistant-memory-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
+    }
+
+    #[test]
+    fn the_assistant_chosen_is_remembered_beside_save_with_file() {
+        let d = scratch("provider");
+        let s = Store::new(&d);
+        assert_eq!(s.provider_choice(), None);
+        s.set_save_with_file(true);
+        s.set_provider_choice("ollama");
+        assert_eq!(s.provider_choice().as_deref(), Some("ollama"));
+        assert!(s.save_with_file(), "one choice doesn't lose the other");
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

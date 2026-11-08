@@ -1,0 +1,14 @@
+[package]
+name = "craft-sync"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "A synced cloud folder (iCloud Drive, OneDrive, Google Drive, Dropbox) as every Craft app uses it: shared settings and AI memory, earlier versions of saved files, and the copies a cloud keeps when two computers change a file"
+
+[dependencies]
+serde_json = "1"
+# All date/time conversion goes through chrono (AGENTS.md): the version names.
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+
+[lints]
+workspace = true
