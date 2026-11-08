@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 # The synced cloud folder every Craft app shares (crates/craft-sync): iCloud Drive and the others.
-craft-sync = { path = "../craft-sync" }
+craft-sync = { path = "../craft-sync", version = "0.1.0" }
 craft-ui = { workspace = true }
 # The menus: native on macOS, an egui bar elsewhere, from one definition (menus.rs).
 craft-menu = { workspace = true }
