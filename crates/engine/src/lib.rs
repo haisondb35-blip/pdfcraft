@@ -46,6 +46,7 @@ pub mod printcheck;
 pub mod printmarks;
 mod protection;
 pub mod scan;
+mod rich_copy;
 pub mod scan_clean;
 mod scan_colours;
 mod scan_fields;
@@ -71,6 +72,7 @@ pub use links::{
 };
 pub use pdfcraft_edit::strip_subset_tag;
 pub use printmarks::PrinterMarks;
+pub use rich_copy::RichCopy;
 pub use signature_image::{ImageSignaturePreview, SignatureImage};
 pub use signature_scan::{PhotoRect, ScanError, SignaturePhoto, Turn};
 pub use stamp_preview::{CommentLayer, StampPreview};
@@ -94,7 +96,8 @@ pub use pdfcraft_edit::added::{
 };
 pub use pdfcraft_edit::paragraph_align;
 pub use pdfcraft_edit::{
-    Added, AddedImage, AddedText, Align as TextAlign, Background, Content as AddedContent, Family as FontFamily, HeaderFooter, MarkKind, Watermark,
+    Added, AddedImage, AddedText, Align as TextAlign, Background, Content as AddedContent, Family as FontFamily, HeaderFooter, Ink as TextInk,
+    MarkKind, Watermark,
 };
 pub use pdfcraft_forms::{
     BorderStyle, CalculatedField, CalculationIssue, CalculationOrder, CheckStyle, Field as FormField, FieldAction, FieldChange, FieldFont,
