@@ -1463,7 +1463,8 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     ui.add_space(4.0);
     let input_h = 96.0;
     let name = a.provider.name();
-    let intro = "Ask Claude to summarise, find, comment on or change the open PDF. Changes appear in the document as Claude makes them and can be undone.";
+    let intro =
+        "Ask Claude to summarise, find, comment on or change the open PDF. Changes appear in the document as Claude makes them and can be undone.";
     let intro = intro.replace("Claude", name);
     let working = "Claude is working…";
     let working = working.replace("Claude", name);
@@ -1487,11 +1488,14 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
                     // What Claude did, folded to one line ("5 steps"); open it to see them.
                     let n = m.text.lines().count();
                     let title = if n == 1 { "1 step".to_string() } else { format!("{n} steps") };
-                    egui::CollapsingHeader::new(egui::RichText::new(title).small().color(t.text_muted)).id_salt(("assistant_work", i)).show(ui, |ui| {
-                        for l in m.text.lines() {
-                            ui.label(egui::RichText::new(format!("· {l}")).small().color(t.text_muted));
-                        }
-                    });
+                    egui::CollapsingHeader::new(egui::RichText::new(title).small().color(t.text_muted)).id_salt(("assistant_work", i)).show(
+                        ui,
+                        |ui| {
+                            for l in m.text.lines() {
+                                ui.label(egui::RichText::new(format!("· {l}")).small().color(t.text_muted));
+                            }
+                        },
+                    );
                 }
                 Role::Error => {
                     ui.label(egui::RichText::new(&m.text).color(egui::Color32::from_rgb(196, 43, 28)));

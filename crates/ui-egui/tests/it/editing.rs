@@ -7755,7 +7755,8 @@ fn delete_with_the_pointer_on_the_pages_panel_deletes_a_page() {
 /// went to crop mode's whole-page hit, which unselected every picture.
 #[test]
 fn in_crop_mode_a_right_click_on_another_picture_selects_it() {
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 1400.0)).build_eframe(|_cc| {
+    // Tall enough that the lower picture shows above the page bar.
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 1500.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
         app.open_bytes("two.pdf", None, two_image_fixture()).unwrap();
