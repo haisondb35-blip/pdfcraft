@@ -8,7 +8,7 @@
 //! patterns), shadings, form XObjects and annotation appearances are left as they are; images
 //! are converted by the optimize crate.
 
-use pdfcraft_content::{Op, Pieces, num};
+use pdfcraft_content::{Op, num};
 use pdfcraft_cos::{Document, Object};
 
 use crate::EditError;
@@ -203,9 +203,13 @@ pub fn convert_colors(doc: &mut Document, pages: &[usize], target: ColorTarget) 
         if streams.is_empty() {
             continue;
         }
-        let pieces = Pieces::join(&streams.iter().map(|(_, data)| data.as_slice()).collect::<Vec<_>>());
+        let pieces = crate::text::joined(&streams);
         let ops = pieces.parse().ops;
-        let fixes = plan(&ops, target);
+        // A colour set past a stream that wasn't read whole is left as it is: what wasn't read can
+        // draw in the state it sets.
+        let hidden = crate::text::first_op_after_damage(&streams, &pieces, &ops);
+        let mut fixes = plan(&ops, target);
+        fixes.retain(|(at, _)| *at < hidden);
         if fixes.is_empty() {
             continue;
         }
@@ -215,7 +219,7 @@ pub fn convert_colors(doc: &mut Document, pages: &[usize], target: ColorTarget) 
             Some((at, _)) if *at == i => next.next().map_or((Vec::new(), true), |(_, ops)| (ops, false)),
             _ => (Vec::new(), true),
         });
-        let contents = crate::text::rewritten_contents(doc, &streams, new);
+        let contents = crate::text::rewritten_contents(doc, &streams, new)?;
         doc.update_dict(page.obj, |d| d.set(b"Contents".to_vec(), contents))?;
     }
     Ok(changed)

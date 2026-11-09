@@ -7,7 +7,7 @@
 //! the replacement width. Graphics state dictionaries (`gs` with `/LW`), form XObjects, patterns
 //! and Type 3 glyphs are left as they are.
 
-use pdfcraft_content::{Matrix, Op, Pieces, num};
+use pdfcraft_content::{Matrix, Op, num};
 use pdfcraft_cos::Document;
 
 use crate::EditError;
@@ -81,9 +81,13 @@ pub fn fix_hairlines(doc: &mut Document, pages: &[usize], threshold: f64, replac
         if streams.is_empty() {
             continue;
         }
-        let pieces = Pieces::join(&streams.iter().map(|(_, data)| data.as_slice()).collect::<Vec<_>>());
+        let pieces = crate::text::joined(&streams);
         let ops = pieces.parse().ops;
-        let fixes = plan(&ops, threshold, replace);
+        // A width set past a stream that wasn't read whole is left as it is: what wasn't read can
+        // draw in the state it sets.
+        let hidden = crate::text::first_op_after_damage(&streams, &pieces, &ops);
+        let mut fixes = plan(&ops, threshold, replace);
+        fixes.retain(|(at, _)| *at < hidden);
         if fixes.is_empty() {
             continue;
         }
@@ -97,7 +101,7 @@ pub fn fix_hairlines(doc: &mut Document, pages: &[usize], threshold: f64, replac
             }
             _ => (Vec::new(), true),
         });
-        let contents = crate::text::rewritten_contents(doc, &streams, new);
+        let contents = crate::text::rewritten_contents(doc, &streams, new)?;
         doc.update_dict(page.obj, |d| d.set(b"Contents".to_vec(), contents))?;
     }
     Ok(changed)

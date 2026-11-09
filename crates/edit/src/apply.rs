@@ -1,11 +1,17 @@
+use pdfcraft_fonts::shaped_text::{is_thai, thai_refusal, thai_width};
+
 use super::marks::{
-    Background, Context, HeaderFooter, MarkKind, Watermark, add_picture_resource, bates_start, expand, matrix_number, n, picture, rgb, shrink_matrix,
+    Background, Context, HeaderFooter, MarkKind, MarkText, Watermark, add_picture_resource, bates_start, expand, matrix_number, n, picture, rgb,
+    shrink_matrix,
 };
 use super::place::{
     END, Isolation, Pen, add_page_resources, add_resources, begin, check, check_on_top, contents, free_font_name, isolation, needs_inter, page_fonts,
     page_list, place, place_inside_wrapper, stream_tag, wrapper_role,
 };
-use super::{Document, EditError, Object, added, backdrop};
+use super::{Document, EditError, Object, added, backdrop, helvetica_width};
+
+/// Why Thai text can't share a header, footer or watermark with text only Inter draws.
+const MIXED_THAI: &str = "Thai can't be mixed with Vietnamese, Greek or Cyrillic text in one header, footer or watermark; add them separately";
 
 /// Commit one complete mark operation only after every selected page succeeds. The snapshot
 /// shares original bytes, cross-references, caches and unchanged objects; only the overlay table
@@ -31,9 +37,15 @@ fn add_header_footer_in_place(doc: &mut Document, pages: &[usize], hf: &HeaderFo
     if hf.text.iter().all(|t| t.trim().is_empty()) {
         return Err(EditError::Invalid("type the header or footer text first".into()));
     }
+    if let Some(why) = hf.text.iter().find_map(|t| thai_refusal(t)) {
+        return Err(EditError::Invalid(why));
+    }
     // Tokens only add ASCII (Bates prefixes and suffixes are part of the template), so checking
     // the templates, split as `expand`'s output is, covers every page.
     let inter = needs_inter(hf.text.iter().flat_map(|t| t.lines()))?;
+    if inter && hf.text.iter().any(|t| t.chars().any(is_thai)) {
+        return Err(EditError::Invalid(MIXED_THAI.into()));
+    }
     if !(hf.font_size.is_finite() && hf.font_size > 0.0 && hf.font_size <= 200.0 && hf.margins.iter().all(|m| m.is_finite() && *m >= 0.0)) {
         return Err(EditError::Invalid("invalid font size or margins".into()));
     }
@@ -73,14 +85,25 @@ fn add_header_footer_in_place(doc: &mut Document, pages: &[usize], hf: &HeaderFo
     }
     let all = page_list(doc);
     let count = all.len();
+    let number_of = |k: usize| {
+        u32::try_from(u64::from(hf.start_number) + k as u64).map_err(|_| EditError::Invalid("the header page numbers are too large".into()))
+    };
+    let bates_of = |k: usize| bates0.checked_add(k as u64).ok_or_else(|| EditError::Invalid("the Bates numbers are too large".into()));
+    // Every Thai line drawn on any page (a Bates prefix may join a template's Thai), for its fonts.
+    let mut thai_lines = std::collections::BTreeSet::new();
+    if hf.text.iter().any(|t| t.chars().any(is_thai)) {
+        for k in 0..pages.len() {
+            let (number, bates) = (number_of(k)?, bates_of(k)?);
+            thai_lines.extend(hf.text.iter().flat_map(|t| expand(t, number, count, bates, cx).lines().map(str::to_owned).collect::<Vec<_>>()));
+        }
+    }
+    let thai = MarkText::new(doc, &all, pages, thai_lines.iter().map(String::as_str))?;
     for (k, &i) in pages.iter().enumerate() {
         let page = &all[i];
         let (w, h) = page.display_size(doc);
+        let (number, bates) = (number_of(k)?, bates_of(k)?);
         add_resources(doc, page, None, None)?;
         let pen = Pen::for_page(doc, i, inter)?;
-        let number =
-            u32::try_from(u64::from(hf.start_number) + k as u64).map_err(|_| EditError::Invalid("the header page numbers are too large".into()))?;
-        let bates = bates0.checked_add(k as u64).ok_or_else(|| EditError::Invalid("the Bates numbers are too large".into()))?;
         let size = hf.font_size;
         let [top, bottom, left, right] = hf.margins;
         // Text a standard font can draw uses the chosen family, under the usual resource name
@@ -98,6 +121,7 @@ fn add_header_footer_in_place(doc: &mut Document, pages: &[usize], hf: &HeaderFo
         };
         let shown = standard.clone().unwrap_or_else(|| pen.resource().to_string());
         let mut body: Vec<u8> = format!("BT\n/{shown} {} Tf\n{}\n", n(size), rgb(hf.color)).into_bytes();
+        let mut current = None;
         let mut underlines = String::new();
         for (slot, template) in hf.text.iter().enumerate() {
             if template.trim().is_empty() {
@@ -108,9 +132,12 @@ fn add_header_footer_in_place(doc: &mut Document, pages: &[usize], hf: &HeaderFo
             let line_h = size * 1.2;
             for (li, line) in lines.iter().enumerate() {
                 // Centred and right-aligned text is placed by its width in the face drawing it.
+                let face = |s: &str, size: f64| hf.font.width(s, size, false, false);
+                let thai_line = line.chars().any(is_thai);
                 let tw = match &pen {
+                    _ if thai_line => thai_width(line, size, face),
                     Pen::Inter(_) => pen.width(line, size),
-                    Pen::Helvetica => hf.font.width(line, size, false, false),
+                    Pen::Helvetica => face(line, size),
                 };
                 let x = match slot % 3 {
                     0 => left,
@@ -119,7 +146,15 @@ fn add_header_footer_in_place(doc: &mut Document, pages: &[usize], hf: &HeaderFo
                 };
                 // Headers hang below the top margin; footers sit on the bottom margin.
                 let y = if header { h - top - size * 0.8 - li as f64 * line_h } else { bottom + (lines.len() - 1 - li) as f64 * line_h };
-                body.extend(pen.text_op(x, y, line)?);
+                if thai_line {
+                    thai.show(&mut body, line, x, y, size, &shown, |s| face(s, size), &mut current);
+                } else {
+                    // A Thai line left another font selected: the line's own is selected again.
+                    if current.take().is_some() {
+                        body.extend(format!("/{shown} {} Tf ", n(size)).bytes());
+                    }
+                    body.extend(pen.text_op(x, y, line)?);
+                }
                 if hf.underline {
                     underlines.push_str(&format!("{} {} {} {} re f\n", n(x), n(y - size * 0.15), n(tw), n((size * 0.06).max(0.4))));
                 }
@@ -138,6 +173,7 @@ fn add_header_footer_in_place(doc: &mut Document, pages: &[usize], hf: &HeaderFo
         {
             add_page_resources(doc, page, None, &[(resource.into_bytes(), base)])?;
         }
+        thai.add_to(doc, &page_list(doc)[i])?;
         let page = &page_list(doc)[i];
         place(doc, page, MarkKind::HeaderFooter, content, false)?;
         if let Some(Some(m)) = shrinks.get(k) {
@@ -162,7 +198,13 @@ fn add_watermark_in_place(doc: &mut Document, pages: &[usize], wm: &Watermark, r
     if text.is_empty() && wm.source.is_none() {
         return Err(EditError::Invalid("type the watermark text first".into()));
     }
+    if let Some(why) = wm.source.is_none().then(|| thai_refusal(text)).flatten() {
+        return Err(EditError::Invalid(why));
+    }
     let inter = wm.source.is_none() && needs_inter(text.lines())?;
+    if inter && text.chars().any(is_thai) {
+        return Err(EditError::Invalid(MIXED_THAI.into()));
+    }
     if !(wm.opacity.is_finite()
         && wm.rotation.is_finite()
         && wm.font_size.is_finite()
@@ -181,6 +223,7 @@ fn add_watermark_in_place(doc: &mut Document, pages: &[usize], wm: &Watermark, r
     }
     let opacity = wm.opacity.clamp(0.0, 1.0);
     let lines: Vec<&str> = text.lines().collect();
+    let thai = if wm.source.is_none() { MarkText::new(doc, &page_list(doc), pages, lines.iter().copied())? } else { MarkText::default() };
     for &i in pages {
         let page = page_list(doc)[i].clone();
         let (w, h) = page.display_size(doc);
@@ -197,7 +240,8 @@ fn add_watermark_in_place(doc: &mut Document, pages: &[usize], wm: &Watermark, r
         }
         add_resources(doc, &page, Some(opacity), None)?;
         let pen = Pen::for_page(doc, i, inter)?;
-        let widest = lines.iter().map(|l| pen.width(l, 1.0)).fold(0.0, f64::max).max(0.01);
+        let width = |l: &str, size: f64| if l.chars().any(is_thai) { thai_width(l, size, helvetica_width) } else { pen.width(l, size) };
+        let widest = lines.iter().map(|l| width(l, 1.0)).fold(0.0, f64::max).max(0.01);
         let size = if wm.font_size > 0.0 { wm.font_size } else { ((w * w + h * h).sqrt() * 0.5 / widest).clamp(6.0, 300.0) };
         let (s, c) = wm.rotation.to_radians().sin_cos();
         let (cx, cy) = (w / 2.0 + wm.offset[0], h / 2.0 + wm.offset[1]);
@@ -220,12 +264,23 @@ fn add_watermark_in_place(doc: &mut Document, pages: &[usize], wm: &Watermark, r
         );
         let line_h = size * 1.15;
         let total = line_h * (lines.len() as f64 - 1.0);
+        let mut current = None;
         for (li, line) in lines.iter().enumerate() {
-            let tw = pen.width(line, size);
-            content.extend(pen.text_op(-tw / 2.0, total / 2.0 - li as f64 * line_h - size * 0.35, line)?);
+            let tw = width(line, size);
+            let y = total / 2.0 - li as f64 * line_h - size * 0.35;
+            if line.chars().any(is_thai) {
+                thai.show(&mut content, line, -tw / 2.0, y, size, pen.resource(), |s| helvetica_width(s, size), &mut current);
+            } else {
+                // A Thai line left another font selected: the line's own is selected again.
+                if current.take().is_some() {
+                    content.extend(format!("/{} {} Tf ", pen.resource(), n(size)).bytes());
+                }
+                content.extend(pen.text_op(-tw / 2.0, y, line)?);
+            }
         }
         content.extend_from_slice(b"ET\n");
         content.extend_from_slice(END.as_bytes());
+        thai.add_to(doc, &page_list(doc)[i])?;
         let page = &page_list(doc)[i];
         place(doc, page, MarkKind::Watermark, content, wm.behind)?;
     }

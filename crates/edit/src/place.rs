@@ -1,3 +1,5 @@
+use pdfcraft_fonts::shaped_text::{first_undrawable_in_line, is_thai};
+
 use super::marks::{MarkKind, matrix_number, n};
 use super::{Dict, Document, EditError, ObjRef, Object, Stream, helvetica_width, literal, win_ansi};
 
@@ -66,6 +68,19 @@ pub(crate) fn free_font_name(doc: &Document, fonts: &Dict, preferred: &str, base
         return preferred.to_string();
     }
     (1..=fonts.len().saturating_add(1)).map(|k| format!("{preferred}_{k}")).find(|name| usable(name)).unwrap_or_else(|| preferred.to_string())
+}
+
+/// Add `fonts` (resource name, font) to the page's own resources.
+pub(crate) fn add_page_fonts(doc: &mut Document, page: &pdfcraft_model::Page, fonts: &Dict) -> Result<(), EditError> {
+    let mut res = page.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
+    let mut all = res.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned()).unwrap_or_default();
+    for (name, font) in fonts.iter() {
+        all.set(name.clone(), font.clone());
+    }
+    res.set(b"Font".to_vec(), Object::Dict(all));
+    // The page gets its own (possibly copied) resources; shared dictionaries stay untouched.
+    doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res)))?;
+    Ok(())
 }
 
 /// Add the standard `faces` (resource name, base font) and an opacity state to the page's own
@@ -576,7 +591,8 @@ pub(crate) fn needs_inter<'a>(lines: impl IntoIterator<Item = &'a str>) -> Resul
         if let Some(c) = undrawable_in(line) {
             return Err(undrawable(c));
         }
-        inter |= pdfcraft_fonts::first_non_win_ansi(line).is_some();
+        // A line with Thai is drawn from the Thai face, not Inter.
+        inter |= !line.chars().any(is_thai) && pdfcraft_fonts::first_non_win_ansi(line).is_some();
     }
     Ok(inter)
 }
@@ -584,6 +600,10 @@ pub(crate) fn needs_inter<'a>(lines: impl IntoIterator<Item = &'a str>) -> Resul
 /// The first character of `line` that neither the standard fonts nor Inter can draw: a line
 /// with anything WinAnsiEncoding can't encode is drawn in Inter, so it needs Inter to cover it all.
 pub(super) fn undrawable_in(line: &str) -> Option<char> {
+    // Thai is drawn from the Thai face (shaped), the rest of such a line from the standard fonts.
+    if line.chars().any(is_thai) {
+        return first_undrawable_in_line(line);
+    }
     let first = pdfcraft_fonts::first_non_win_ansi(line)?;
     if !pdfcraft_fonts::unicode::covers(line) {
         return Some(first);
