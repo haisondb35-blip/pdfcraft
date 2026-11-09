@@ -846,7 +846,7 @@ fn field_appearance_fit(doc: &Document, f: &Field, w: &Widget, values: &[String]
             } else {
                 FontText::WinAnsi.first_unencodable(&text.replace(['\n', '\r'], " ")).is_none()
             };
-            !helvetica_holds && can_show(enc)
+            !helvetica_holds && can_show(enc, &latin_text)
         }) {
             Some((o, enc)) => (crate::UNICODE_FONT.to_string(), o, enc),
             None => ("Helv".to_string(), helvetica(), FontText::WinAnsi),
