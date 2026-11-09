@@ -185,6 +185,13 @@ impl PdfCraftApp {
                 return false;
             }
         };
+        // Save chat with file: the assistant's conversation about this PDF goes into it too, when
+        // that is on (and out again when it is off). Kept only if the result reopens.
+        let signed = self.session.get(id).is_some_and(|d| d.is_signed());
+        let bytes = match crate::assistant::embed::hook(&self.assistant.shelf, dest, &bytes, signed).map(std::sync::Arc::new) {
+            Some(with) if self.session.check_save(id, &with).is_ok() => with,
+            _ => bytes,
+        };
         if let Err(e) = write_atomically(dest, &bytes) {
             self.notify_fmt("Couldn't save {name}: {e}", &[("name", dest), ("e", &e.to_string())]);
             return false;

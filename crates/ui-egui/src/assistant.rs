@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Value, json};
 
 pub mod api;
+pub mod embed;
 mod memory;
 pub use memory::{Memory, Store};
 

@@ -27,6 +27,10 @@ impl PdfCraftApp {
                     // all the Craft apps share (ArtCraft/AI).
                     if self.assistant.memory.is_none() {
                         self.assistant.use_memory(crate::assistant::Store::shared());
+                        // Save chat with file: a PDF's conversation comes back from the file.
+                        if self.assistant.memory.is_some() {
+                            self.assistant.embedded_reader = Some(crate::assistant::embed::read);
+                        }
                     }
                 }
                 Err(e) => self.notify_error(format!("Claude: couldn't open a control channel ({e})")),
