@@ -482,6 +482,11 @@ fn tab(ui: &mut egui::Ui, spec: TabSpec<'_>, close: &mut Option<usize>) -> egui:
 const MODE_BAR_RIGHT: f32 = 3.0 * 32.0 + 3.0 * 4.0 + 8.0;
 /// Narrowest search field the mode bar shows; below it the field becomes an icon button.
 const MODE_BAR_SEARCH_MIN: f32 = 140.0;
+/// Width the AI Assistant button takes with its label (brian-local): "AI Assistant" in the 13 pt
+/// font, the icon, padding and the gap after it.
+const MODE_BAR_AI_WIDE: f32 = 132.0;
+/// Width the AI Assistant button takes as an icon (a narrow window): the button and its gaps.
+const MODE_BAR_AI_ICON: f32 = 32.0 + 4.0 + 4.0;
 
 pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
@@ -504,7 +509,7 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 // What the right side needs (three 32 px buttons, gaps) and the least search box worth showing.
                 let avail = ui.available_width();
                 let tabs_w: f32 = modes.iter().map(|(_, l)| widgets::mode_tab_width(ui, tl!(*l))).sum::<f32>() + 2.0 * (modes.len() as f32 - 1.0);
-                let inline_tabs = avail >= tabs_w + MODE_BAR_RIGHT + MODE_BAR_SEARCH_MIN;
+                let inline_tabs = avail >= tabs_w + MODE_BAR_RIGHT + MODE_BAR_AI_ICON + MODE_BAR_SEARCH_MIN;
                 if inline_tabs {
                     for (mode, label) in modes {
                         if widgets::mode_tab(ui, tl!(label), app.mode == mode).clicked() {
@@ -533,10 +538,15 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     // AI Assistant: the pane where Claude or ChatGPT works on the open PDF (also View ▸ AI Assistant).
-                    if widgets::ghost_button(ui, "sparkles", "AI Assistant")
-                        .on_hover_text("Ask Claude or ChatGPT about the open PDF, or have it change the PDF")
-                        .clicked()
-                    {
+                    // In a narrow window it is an icon, so the modes menu and the search keep their room.
+                    let ai_wide = left >= MODE_BAR_RIGHT + MODE_BAR_AI_WIDE + MODE_BAR_SEARCH_MIN;
+                    let ai_tip = "Ask Claude or ChatGPT about the open PDF, or have it change the PDF";
+                    let ai = if ai_wide {
+                        widgets::ghost_button(ui, "sparkles", "AI Assistant").on_hover_text(ai_tip)
+                    } else {
+                        icons::button(ui, "sparkles", 32.0, false, ai_tip)
+                    };
+                    if ai.clicked() {
                         app.assistant_open = !app.assistant_open;
                         app.assistant.focus = app.assistant_open;
                     }
@@ -563,7 +573,8 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         }
                     });
                     ui.add_space(8.0);
-                    let search_w = (left - MODE_BAR_RIGHT).clamp(0.0, 260.0);
+                    let ai_w = if ai_wide { MODE_BAR_AI_WIDE } else { MODE_BAR_AI_ICON };
+                    let search_w = (left - MODE_BAR_RIGHT - ai_w).clamp(0.0, 260.0);
                     let opened = if search_w >= MODE_BAR_SEARCH_MIN {
                         widgets::search_box(ui, tl!("Find tools and commands"), search_w).clicked()
                     } else {
