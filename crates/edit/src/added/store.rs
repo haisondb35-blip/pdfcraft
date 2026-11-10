@@ -337,8 +337,11 @@ fn own_fonts(doc: &Document, obj: ObjRef) -> Vec<Vec<u8>> {
     let limit = pdfcraft_cos::MAX_PAGE_DECODED.max(s.raw.len().saturating_mul(16));
     let Ok(data) = s.decoded_within(limit) else { return Vec::new() };
     // Each name once: a stream that repeats a name is not copied out once per use.
-    let names: std::collections::BTreeSet<&[u8]> =
-        data.split(u8::is_ascii_whitespace).filter_map(|w| w.strip_prefix(b"/")).filter(|w| w.starts_with(b"PCAr") || w.starts_with(b"PCUni")).collect();
+    let names: std::collections::BTreeSet<&[u8]> = data
+        .split(u8::is_ascii_whitespace)
+        .filter_map(|w| w.strip_prefix(b"/"))
+        .filter(|w| w.starts_with(b"PCAr") || w.starts_with(b"PCUni"))
+        .collect();
     names.into_iter().map(<[u8]>::to_vec).collect()
 }
 

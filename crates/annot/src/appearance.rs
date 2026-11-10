@@ -1472,7 +1472,12 @@ fn shaped_border(
     Some(rect)
 }
 
-fn draw_free_text(context: &AppearanceContext<'_>, mut drawing: AppearanceDrawing, dr_face: Option<pdfcraft_fonts::Std14>, unicode: Option<&UnicodeFont<'_>>) -> Option<Stream> {
+fn draw_free_text(
+    context: &AppearanceContext<'_>,
+    mut drawing: AppearanceDrawing,
+    dr_face: Option<pdfcraft_fonts::Std14>,
+    unicode: Option<&UnicodeFont<'_>>,
+) -> Option<Stream> {
     let d = context.dict;
     let parts = context.parts;
     let rect = context.rect;
@@ -1628,7 +1633,17 @@ fn draw_free_text(context: &AppearanceContext<'_>, mut drawing: AppearanceDrawin
                 out.extend((u.show)(line).unwrap_or_else(|| b"<>".to_vec()));
                 out.extend_from_slice(b" Tj\n");
             }
-            None => shaped.show_line(&mut out, pieces, x, y, size, crate::text_style::resource_name(face), win_ansi, |s| face.text_width(s, size), &mut current),
+            None => shaped.show_line(
+                &mut out,
+                pieces,
+                x,
+                y,
+                size,
+                crate::text_style::resource_name(face),
+                win_ansi,
+                |s| face.text_width(s, size),
+                &mut current,
+            ),
         }
         y -= size * 1.2;
     }
