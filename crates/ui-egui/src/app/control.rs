@@ -150,12 +150,10 @@ impl PdfCraftApp {
                     "split" => Some(Dialog::Split),
                     "protect" => Some(Dialog::Protect),
                     "page-boxes" => Some(Dialog::PageBoxes),
-                    "printer-marks" => Some(Dialog::PrinterMarks),
-                    "fix-hairlines" => Some(Dialog::FixHairlines),
-                    "convert-colors" => Some(Dialog::ConvertColors),
                     "header-footer" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter)),
                     "watermark" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Watermark)),
                     "background" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Background)),
+                    "printer-marks" => Some(Dialog::PrinterMarks),
                     "export-image" => Some(Dialog::Export(export_ui::ExportKind::Image)),
                     "word-count" => Some(Dialog::WordCount),
                     "export-text" => Some(Dialog::Export(export_ui::ExportKind::Text)),
@@ -185,6 +183,13 @@ impl PdfCraftApp {
                         // Same path as the menu, so the page range is seeded.
                         self.execute("page.number");
                         Some(Dialog::NumberPages)
+                    }
+                    "convert-colours" => Some(Dialog::ConvertColours),
+                    "fix-hairlines" => {
+                        // Through the command, so it is refused with no document or none that
+                        // can be modified, as the menu is.
+                        self.execute("prepress.hairlines");
+                        return Ok(());
                     }
                     "page-properties" => {
                         // Same path as the panel, so the selected pages and their order are seeded.
@@ -395,6 +400,7 @@ impl PdfCraftApp {
                 };
             }
             ("author", _) => self.comment_prefs.author = value.to_string(),
+            ("folder-collapsed", _) => self.set_folder_collapsed(value)?,
             ("comment-tool-pinned", _) => {
                 self.comment_prefs.pinned = match value {
                     "true" => true,
@@ -407,6 +413,13 @@ impl PdfCraftApp {
                     "true" => true,
                     "false" => false,
                     _ => return Err("hide-empty-highlight-hover must be true or false".into()),
+                };
+            }
+            ("text-links", _) => {
+                self.text_links = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("text-links must be true or false".into()),
                 };
             }
             ("ui-scale", _) => self.ui_scale = ui_scale::parse(value)?,
