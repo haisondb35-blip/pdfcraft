@@ -766,6 +766,10 @@ pub fn codex_args(l: &Launch) -> Vec<String> {
         .into_iter()
         .map(String::from)
         .collect();
+    // Codex's own settings can turn on plugins (Computer Use, a browser…) that try to drive this
+    // window through the screen instead of the app's tools, and are refused here: leave them out.
+    // Sign-in still comes from Codex's folder.
+    a.insert(3, "--ignore-user-config".into());
     let server = &l.server;
     a.push("-c".into());
     a.push(format!("mcp_servers.pdfcraft.command={}", toml_str(&server.command.to_string_lossy())));
@@ -1691,7 +1695,7 @@ mod tests {
             api: None,
         };
         let a = codex_args(&l);
-        assert_eq!(&a[..5], ["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only"]);
+        assert_eq!(&a[..6], ["exec", "--json", "--skip-git-repo-check", "--ignore-user-config", "--sandbox", "read-only"]);
         assert!(a.contains(&"approval_policy=\"never\"".to_string()));
         assert!(a.contains(&r#"mcp_servers.pdfcraft.command="C:\\Program Files\\App\\pdfcraft-cli.exe""#.to_string()), "{a:?}");
         assert!(a.contains(&r#"mcp_servers.pdfcraft.args=["mcp","--app","4242"]"#.to_string()), "{a:?}");
