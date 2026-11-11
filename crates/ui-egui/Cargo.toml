@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 # The synced cloud folder every Craft app shares (crates/craft-sync): iCloud Drive and the others.
 craft-sync = { path = "../craft-sync", version = "0.1.0" }
+edit-session = { workspace = true }
 craft-ui = { workspace = true }
 # The menus: native on macOS, an egui bar elsewhere, from one definition (menus.rs).
 craft-menu = { workspace = true }
@@ -36,6 +37,7 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "glow", "acces
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+zeroize = { workspace = true }
 # UTC/calendar display (combine modified-time stamp, the form date picker) goes through chrono
 # (no hand-rolled calendar code); std-only, so it stays wasm-safe.
 chrono = { workspace = true }
