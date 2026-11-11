@@ -1472,6 +1472,9 @@ fn shaped_border(
     Some(rect)
 }
 
+// The Inter fallback (comment text the standard fonts can't encode: Vietnamese, Greek, Cyrillic)
+// draws each line its own way next to upstream's shaped Thai and standard-face text.
+#[allow(clippy::cognitive_complexity)]
 fn draw_free_text(
     context: &AppearanceContext<'_>,
     mut drawing: AppearanceDrawing,

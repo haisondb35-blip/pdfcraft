@@ -796,6 +796,9 @@ pub(crate) fn thai_refusal(doc: &Document, f: &Field, text: &str) -> Option<Stri
 }
 
 /// [`field_appearance_drawn`], and whether the text drawn is cut off by the box.
+// The Inter fallback (text Helvetica can't hold: Vietnamese, Greek, Cyrillic) adds one choice of
+// font to upstream's steps, which reads best kept in one place.
+#[allow(clippy::cognitive_complexity)]
 fn field_appearance_fit(doc: &Document, f: &Field, w: &Widget, values: &[String], format: bool) -> (Stream, Option<char>, Option<Overflow>) {
     let wobj = doc.get(w.obj);
     let wd = wobj.as_dict().cloned().unwrap_or_default();
