@@ -12391,10 +12391,7 @@ fn absolute_gotor_consent_does_not_bypass_validation_or_passwords() {
 
 /// Pages a simulated scanner serves: white JPEGs, 100 × 150 pixels.
 fn scanned_pages(n: usize) -> Vec<pdfcraft_engine::scan::ScannedPage> {
-    let mut jpeg = Vec::new();
-    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(100, 150, image::Rgb([255, 255, 255])))
-        .write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
-        .unwrap();
+    let jpeg = encode_jpeg_dpi(100, 150, craft_image_codecs::ChannelLayout::Rgb, vec![255; 100 * 150 * 3], 90, 72.0);
     (0..n).map(|i| pdfcraft_engine::scan::ScannedPage { name: format!("page-{i}.jpg"), bytes: jpeg.clone(), dpi: 72 }).collect()
 }
 
