@@ -14,7 +14,13 @@ pub(super) fn norm(r: [f64; 4]) -> [f64; 4] {
 /// The advance of `s` in the item's standard font: its glyphs' widths and the character spacing
 /// after each of them, as `Tc` moves the pen (ISO 32000-2 §9.3.2).
 pub(super) fn latin_width(t: &AddedText, s: &str) -> f64 {
-    let w = if unicode_text(t) { pdfcraft_fonts::unicode::width(s, t.size, t.bold) } else { t.family.width(s, t.size, t.bold, t.italic) };
+    latin_width_in(t, s, unicode_text(t))
+}
+
+/// [`latin_width`] with [`unicode_text`] (`inter`) worked out once by the caller: it reads the
+/// item's whole text, so asking it for each word made wrapping quadratic in the text's length.
+pub(super) fn latin_width_in(t: &AddedText, s: &str, inter: bool) -> f64 {
+    let w = if inter { pdfcraft_fonts::unicode::width(s, t.size, t.bold) } else { t.family.width(s, t.size, t.bold, t.italic) };
     w + t.char_spacing * s.chars().count() as f64
 }
 
@@ -42,6 +48,7 @@ pub(super) fn wrapped(t: &AddedText) -> Vec<(String, bool, usize)> {
     #[cfg(test)]
     WRAP_CALLS.with(|c| c.set(c.get().saturating_add(1)));
     let width = (t.rect[2] - t.rect[0]).max(t.size);
+    let inter = unicode_text(t);
     let mut out = Vec::new();
     for (index, para) in t.text.split('\n').enumerate() {
         // Arabic or Hebrew: laid out with the bidirectional algorithm and shaped.
@@ -59,7 +66,7 @@ pub(super) fn wrapped(t: &AddedText) -> Vec<(String, bool, usize)> {
         // sum of its words' and shaping stays linear in the paragraph's length. The space is the
         // paragraph's; a space between Latin words is drawn in the item's font, a few hundredths
         // of an em apart.
-        let measure = |s: &str| if rtl_script || thai { shaped_width(t, s, rtl) } else { latin_width(t, s) };
+        let measure = |s: &str| if rtl_script || thai { shaped_width(t, s, rtl) } else { latin_width_in(t, s, inter) };
         let space = measure(" ");
         let (mut line, mut line_w) = (String::new(), 0.0);
         // Widths add up (the standard-14 widths have no kerning), so each word is measured once

@@ -1,5 +1,6 @@
 use super::layout::{
-    Piece, arabic_error, hebrew_error, is_arabic, is_hebrew, is_thai, latin_width, norm, shaped_layout, text_rect, thai_error, wrapped,
+    Piece, arabic_error, hebrew_error, is_arabic, is_hebrew, is_thai, latin_width, latin_width_in, norm, shaped_layout, text_rect, thai_error,
+    wrapped,
 };
 use super::types::{AddedText, Align, Family, Ink};
 use super::{
@@ -160,7 +161,7 @@ pub(super) fn draw(doc: &mut Document, c: &Content, view: [f64; 6], taken: &Dict
             let all = wrapped(t);
             let paragraphs: Vec<usize> = all.iter().map(|(_, _, p)| *p).collect();
             for (i, (line, ..)) in all.iter().enumerate() {
-                let w = latin_width(t, line);
+                let w = latin_width_in(t, line, inter.is_some());
                 // Baseline: 0.8 em below the line top.
                 let y = r[3] - (i as f64 * 1.2 + 0.95) * t.size;
                 // Justified: word spacing makes every line of a paragraph but its last fill the box.
