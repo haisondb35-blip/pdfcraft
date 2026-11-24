@@ -23,11 +23,34 @@ pub mod embed;
 mod memory;
 pub use memory::{Memory, Store};
 
-use crate::control::ControlRequest;
+use craft::automation::ControlRequest;
 
 /// Starts a control channel for the pane: given the token requests must carry, the port it
 /// listens on (127.0.0.1) and the requests it receives. The desktop app provides it.
 pub type ControlStarter = Box<dyn Fn(&egui::Context, &str) -> Option<(u16, Receiver<ControlRequest>)>>;
+
+/// The few colours the pane needs, read from the window's own visuals (brian-local: the pane is
+/// plain egui over whatever theme the craft UI runtime installed).
+struct Tokens {
+    hover: egui::Color32,
+    text: egui::Color32,
+    text_muted: egui::Color32,
+}
+
+impl Tokens {
+    fn of(ctx: &egui::Context) -> Tokens {
+        let v = ctx.global_style().visuals.clone();
+        Tokens { hover: v.faint_bg_color, text: v.text_color(), text_muted: v.weak_text_color() }
+    }
+}
+
+fn regular(size: f32) -> egui::FontId {
+    egui::FontId::proportional(size)
+}
+
+fn semibold(size: f32) -> egui::FontId {
+    egui::FontId::proportional(size)
+}
 
 /// What starts Claude for a question (the real one runs `claude`; tests use a fake).
 pub type Launcher = Arc<dyn Fn(Launch) -> Result<Running, String> + Send + Sync>;
@@ -1134,16 +1157,16 @@ pub fn blocks(text: &str) -> Vec<Block> {
 
 /// Draw inline Markdown wrapped to the pane.
 fn rich(ui: &mut egui::Ui, text: &str, size: f32, color: egui::Color32, all_bold: bool) {
-    let t = crate::theme::Tokens::get(ui.ctx());
+    let t = Tokens::of(ui.ctx());
     let mut job = egui::text::LayoutJob::default();
     job.wrap.max_width = ui.available_width();
     for sp in spans(text) {
         let font = if sp.code {
             egui::FontId::monospace(size - 1.0)
         } else if sp.bold || all_bold {
-            crate::theme::semibold(size)
+            semibold(size)
         } else {
-            crate::theme::regular(size)
+            regular(size)
         };
         let format = egui::TextFormat {
             font_id: font,
@@ -1159,7 +1182,7 @@ fn rich(ui: &mut egui::Ui, text: &str, size: f32, color: egui::Color32, all_bold
 
 /// Draw a reply's Markdown: headings, lists, quotes, code, bold and italic.
 pub fn markdown(ui: &mut egui::Ui, text: &str) {
-    let t = crate::theme::Tokens::get(ui.ctx());
+    let t = Tokens::of(ui.ctx());
     let size = 13.5;
     for b in blocks(text) {
         match b {
@@ -1170,7 +1193,7 @@ pub fn markdown(ui: &mut egui::Ui, text: &str) {
             Block::Item(marker, depth, rest) => {
                 ui.horizontal_top(|ui| {
                     ui.add_space(4.0 + 14.0 * depth as f32);
-                    ui.label(egui::RichText::new(marker).font(crate::theme::regular(size)).color(t.text_muted));
+                    ui.label(egui::RichText::new(marker).font(regular(size)).color(t.text_muted));
                     ui.vertical(|ui| rich(ui, &rest, size, t.text, false));
                 });
             }
@@ -1379,7 +1402,7 @@ pub fn tool(app: &mut crate::PdfCraftApp, command: &str) -> bool {
 }
 
 pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
-    let t = crate::theme::Tokens::get(ui.ctx());
+    let t = Tokens::of(ui.ctx());
     // The conversation follows the document on screen (each file keeps its own).
     let doc = app.active.and_then(|i| app.views.get(i)).map(|v| (v.id.0, app.session.get(v.id).and_then(|d| d.path.clone())));
     let a = &mut app.assistant;
@@ -1552,7 +1575,7 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
         if a.can_save_with_file() {
             let mut on = a.save_with_file();
             let tip = "Also keep this conversation inside the file when it is saved, so it opens with the file on another computer. Off: kept only on this computer.";
-            if ui.add(crate::widgets::checkbox(&mut on, "Save chat with file")).on_hover_text(tip).changed() {
+            if ui.add(egui::Checkbox::new(&mut on, "Save chat with file")).on_hover_text(tip).changed() {
                 a.set_save_with_file(on);
             }
         }
