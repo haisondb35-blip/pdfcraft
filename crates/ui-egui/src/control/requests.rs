@@ -45,7 +45,7 @@ pub(super) fn handle(app: &mut PdfCraftApp, ctx: &egui::Context, method: &str, p
         "ui.command" => app.command(ctx, str_param("id")?),
         "ui.tool" => {
             let args = p.get("arguments").cloned().unwrap_or_else(|| json!({}));
-            app.tool(str_param("name")?, &args)
+            app.tool(ctx, str_param("name")?, &args)
         }
         "ui.set" => {
             let value = match p.get("value") {

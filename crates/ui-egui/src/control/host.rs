@@ -168,13 +168,13 @@ impl crate::PdfCraftApp {
     }
 
     /// `ui.tool` (the Claude pane): runs an automation tool on the app's own session.
-    pub(crate) fn tool(&mut self, name: &str, args: &Value) -> Result<Value, String> {
+    pub(crate) fn tool(&mut self, ctx: &egui::Context, name: &str, args: &Value) -> Result<Value, String> {
         let Some(mut run) = self.tool_runner.take() else {
             return Err("failed: this PdfCraft runs no automation tools".into());
         };
         let result = run(&mut self.session, name, args);
         self.tool_runner = Some(run);
-        self.sync_views_with_session();
+        self.sync_views_with_session(ctx);
         result
     }
 

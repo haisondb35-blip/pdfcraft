@@ -1431,11 +1431,13 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     }
     ui.horizontal(|ui| {
         let mut chosen = a.provider;
-        craft_ui::ComboBox::from_id_salt("assistant_provider").selected_text(chosen.label()).show_ui(ui, |ui| {
-            for p in Provider::ALL {
-                ui.selectable_value(&mut chosen, p, p.label());
-            }
-        });
+        use craft::ui::contract::Show as _;
+        let entries: Vec<craft::ui::contract::Entry<String>> =
+            Provider::ALL.iter().map(|p| craft::ui::contract::Entry::new(p.key().to_string(), p.label())).collect();
+        let picked = craft::ui::pickers::Select::new("Assistant", craft::ui::contract::Bind::given(chosen.key().to_string()), &entries).show(ui);
+        if let Some(p) = picked.value().and_then(|key| Provider::from_key(key)) {
+            chosen = p;
+        }
         if chosen != a.provider {
             a.set_provider(chosen);
             if let Some(store) = &a.memory {

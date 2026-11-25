@@ -1048,7 +1048,7 @@ impl PdfCraftApp {
     /// After a tool ran on the session (`ui.tool`): documents it closed lose their tab, ones it
     /// opened or created get one (the last becomes active), and every tab shows its document as
     /// it is now.
-    pub fn sync_views_with_session(&mut self) {
+    pub fn sync_views_with_session(&mut self, ctx: &egui::Context) {
         let active = self.active.and_then(|i| self.views.get(i)).map(|v| v.id);
         let ids: Vec<DocId> = self.session.docs().iter().map(|d| d.id).collect();
         self.views.retain(|v| ids.contains(&v.id));
@@ -1057,13 +1057,13 @@ impl PdfCraftApp {
             if !self.views.iter().any(|v| v.id == *id)
                 && let Some(doc) = self.session.get(*id)
             {
-                self.views.push(DocView::new(*id, &doc.info, self.view_defaults));
+                self.views.push(DocView::new(*id, &doc.info, self.view_defaults, self.highlight_fields));
                 opened = Some(*id);
             }
         }
         for view in &mut self.views {
             if let Some(doc) = self.session.get(view.id) {
-                view.document_changed(&doc.info);
+                view.document_changed(ctx, &doc.info);
             }
         }
         let want = opened.or(active);

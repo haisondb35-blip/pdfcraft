@@ -142,14 +142,6 @@ impl StackDialog for PdfaDialog {
 
     fn id(&self) -> DialogId {
         self.id
-impl PdfCraftApp {
-    /// Preflight: the print-readiness report of the active document (it is not changed).
-    /// brian-local: the report is computed; its dialog (the old window layer) is not yet ported.
-    pub fn preflight_check(&mut self) {
-        self.preflight_report = self.active_ids().and_then(|(_, id)| self.session.get(id)).map(|d| d.print_readiness().text()).unwrap_or_default();
-    }
-}
-
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<()>> {
@@ -239,5 +231,13 @@ mod wording_tests {
         for phrase in [concat!("conform", "s to"), concat!("now ", "conforms")] {
             assert!(!source.contains(phrase), "a standards message makes a claim only a validator run can make: {phrase}");
         }
+    }
+}
+
+impl PdfCraftApp {
+    /// Preflight: the print-readiness report of the active document (it is not changed).
+    /// brian-local: the report is computed; its dialog (the old window layer) is not yet ported.
+    pub fn preflight_check(&mut self) {
+        self.preflight_report = self.active_ids().and_then(|(_, id)| self.session.get(id)).map(|d| d.print_readiness().text()).unwrap_or_default();
     }
 }
