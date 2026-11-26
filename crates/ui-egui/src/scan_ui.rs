@@ -1,16 +1,28 @@
 //! Scan & OCR ▸ Scan: the Scan dialog (scanner, paper source, colour, resolution, recognise text
 //! afterwards). Looking for scanners and scanning run on worker threads; the scanned pages
-//! collect in the dialog (a flatbed scans one page at a time) until Done makes them a new PDF
-//! or inserts them after the current page.
+//! collect while the dialog is open (a flatbed scans one page at a time) until Done makes them a
+//! new PDF or inserts them after the current page.
+//!
+//! The dialog is a stack dialog on the craft UI framework: it shows what [`PdfCraftApp::scan_pass`]
+//! copies into it each frame and asks for a scan or a new search through `action`; the app runs
+//! the work and keeps the pages.
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Align, Layout};
+use craft::ui::buttons::Button;
+use craft::ui::choice::Checkbox;
+use craft::ui::contract::{Bind, Entry, Props as _, Show as _};
+use craft::ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft::ui::display::{Shade, Text};
+use craft::ui::form::Field;
+use craft::ui::patterns::form_dialogs::FormDialog;
+use craft::ui::pickers::Select;
+use craft::ui::sections::{DialogRole, FooterButton};
+use egui::Ui;
 use pdfcraft_engine::DocId;
 use pdfcraft_engine::scan::{Backend, ColorMode, RESOLUTIONS, ScanError, ScanSettings, ScannedPage, Scanner, Source};
 
-use crate::theme::{self, Tokens};
-use crate::{PdfCraftApp, widgets};
+use crate::PdfCraftApp;
 
 /// Where the scanned pages go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,7 +54,7 @@ pub struct ScanProgress {
 /// What looking for scanners found.
 type Found = Result<Vec<Scanner>, ScanError>;
 
-/// The open Scan dialog.
+/// The open Scan dialog's work.
 pub struct ScanSession {
     pub target: ScanTarget,
     /// The scanners found (`None` while looking).
@@ -78,132 +90,156 @@ fn mode_label(m: ColorMode) -> &'static str {
     }
 }
 
-/// The dialog. Returns `(scan, done, cancel)`.
-pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool, bool) {
-    app.poll_scan();
-    let ocr = pdfcraft_engine::ocr::available();
-    let Some(session) = app.scan.as_ref() else { return (false, false, true) };
-    let insert = matches!(session.target, ScanTarget::Insert { .. });
-    ui.label(egui::RichText::new(if insert { tl!("Insert from scanner") } else { tl!("Scan to PDF") }).font(theme::semibold(18.0)));
-    ui.add_space(8.0);
-    let busy = session.running.is_some();
-    let mut search = false;
-    let draft = &mut app.scan_draft;
-    egui::Grid::new("scan-settings").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-        ui.label(tl!("Scanner"));
-        match &session.scanners {
-            None => {
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(tl!("Looking for scanners…"));
-                });
+/// A scanner as the dialog lists it.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Listed {
+    id: String,
+    name: String,
+    sources: Vec<Source>,
+}
+
+/// What the dialog shows of the work, copied in by [`PdfCraftApp::scan_pass`].
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Shown {
+    insert: bool,
+    /// The scanners found; `None` while looking; the reason when there are none.
+    scanners: Option<Result<Vec<Listed>, String>>,
+    /// Pages scanned so far.
+    pages: usize,
+    /// The page being scanned (1-based) while a scan runs.
+    scanning: Option<usize>,
+    error: Option<String>,
+    /// Text recognition is available.
+    ocr: bool,
+}
+
+/// What a button in the dialog asked for; `scan_pass` runs it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Action {
+    Scan,
+    Search,
+}
+
+/// Scan & OCR ▸ Scan to PDF, Organize pages ▸ Insert from scanner. Done answers `Ok(true)`.
+pub(crate) struct ScanDialog {
+    id: DialogId,
+    form: ScanDraft,
+    shown: Shown,
+    action: Option<Action>,
+}
+
+impl StackDialog for ScanDialog {
+    type Result = bool;
+
+    fn id(&self) -> DialogId {
+        self.id
+    }
+
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<bool>> {
+        let ScanDialog { form, shown, action, .. } = self;
+        let title = if shown.insert { tl!("Insert from scanner") } else { tl!("Scan to PDF") };
+        let out = FormDialog::new(title, Bind::bound(&mut *form))
+            .ok_label(tl!("Done").to_string())
+            .cancel_label(tl!("Cancel").to_string())
+            .alt_resets(false)
+            .extra_buttons([FooterButton::new(tl!("Scan").to_string(), DialogRole::Other)])
+            .show(ui, |ui, _, f| {
+                body(ui, shown, action, f);
+                true
+            });
+        if out.picked == Some(2) {
+            *action = Some(Action::Scan);
+        }
+        if out.accepted.is_some() {
+            return Some(DialogResult::Ok(true));
+        }
+        out.closed.map(|_| DialogResult::Cancel)
+    }
+}
+
+/// The dialog's rows.
+fn body(ui: &mut Ui, shown: &Shown, action: &mut Option<Action>, f: &mut ScanDraft) {
+    let busy = shown.scanning.is_some();
+    let mut sources = vec![Source::Flatbed];
+    match &shown.scanners {
+        None => {
+            Text::new(tl!("Looking for scanners…").to_string()).shade(Shade::Muted).show(ui);
+        }
+        Some(Ok(found)) if !found.is_empty() => {
+            let current = found.iter().find(|s| f.scanner.as_ref() == Some(&s.id)).or(found.first());
+            if let Some(c) = current {
+                sources = c.sources.clone();
             }
-            Some(Ok(found)) if !found.is_empty() => {
-                let current = session.scanner(draft).cloned();
-                ui.add_enabled_ui(!busy, |ui| {
-                    craft_ui::ComboBox::from_id_salt("scan-device")
-                        .selected_text(current.as_ref().map(Scanner::display_name).unwrap_or_default())
-                        .width(260.0)
-                        .show_ui(ui, |ui| {
-                            for s in found {
-                                if ui.selectable_label(current.as_ref().is_some_and(|c| c.id == s.id), s.display_name()).clicked() {
-                                    draft.scanner = Some(s.id.clone());
-                                }
-                            }
-                        });
-                });
-            }
-            Some(result) => {
-                let why = match result {
-                    Err(e) => e.to_string(),
-                    Ok(_) => ScanError::NoScanner.to_string(),
-                };
-                ui.vertical(|ui| {
-                    ui.label(egui::RichText::new(why).small().color(t.text_muted));
-                    if widgets::pill_button(ui, tl!("Search again"), false).clicked() {
-                        search = true;
-                    }
-                });
+            let entries: Vec<Entry<String>> = found.iter().map(|s| Entry::new(s.id.clone(), s.name.clone())).collect();
+            let caption = tl!("Scanner").to_string();
+            let given = current.map(|c| c.id.clone()).unwrap_or_default();
+            Field::new(caption.clone()).show(ui, |ui, _| {
+                if let Some(id) = Select::new(caption.clone(), Bind::given(given.clone()), &entries).show(ui).value().cloned()
+                    && !busy
+                {
+                    f.scanner = Some(id);
+                }
+            });
+        }
+        Some(result) => {
+            let why = match result {
+                Err(e) => e.clone(),
+                Ok(_) => ScanError::NoScanner.to_string(),
+            };
+            Text::new(why).shade(Shade::Muted).show(ui);
+            if Button::new(tl!("Search again").to_string()).show(ui).clicks > 0 {
+                *action = Some(Action::Search);
             }
         }
-        ui.end_row();
-        let sources = session.scanner(draft).map_or_else(|| vec![Source::Flatbed], |s| s.sources.clone());
-        if !sources.contains(&draft.settings.source) {
-            draft.settings.source = sources.first().copied().unwrap_or(Source::Flatbed);
+    }
+    if !sources.contains(&f.settings.source) {
+        f.settings.source = sources.first().copied().unwrap_or(Source::Flatbed);
+    }
+    let caption = tl!("Source").to_string();
+    let entries: Vec<Entry<Source>> = sources.iter().map(|s| Entry::new(*s, source_label(*s).to_string())).collect();
+    Field::new(caption.clone()).show(ui, |ui, _| {
+        if let Some(s) = Select::new(caption.clone(), Bind::given(f.settings.source), &entries).show(ui).value().copied()
+            && !busy
+        {
+            f.settings.source = s;
         }
-        ui.label(tl!("Source"));
-        ui.add_enabled_ui(!busy, |ui| {
-            ui.vertical(|ui| {
-                for s in &sources {
-                    widgets::radio_value(ui, &mut draft.settings.source, *s, source_label(*s));
-                }
-            });
-        });
-        ui.end_row();
-        ui.label(tl!("Colour"));
-        ui.add_enabled_ui(!busy, |ui| {
-            craft_ui::ComboBox::from_id_salt("scan-mode").selected_text(mode_label(draft.settings.mode)).width(260.0).show_ui(ui, |ui| {
-                for m in ColorMode::ALL {
-                    ui.selectable_value(&mut draft.settings.mode, m, mode_label(m));
-                }
-            });
-        });
-        ui.end_row();
-        ui.label(tl!("Resolution"));
-        ui.add_enabled_ui(!busy, |ui| {
-            craft_ui::ComboBox::from_id_salt("scan-dpi").selected_text(format!("{} dpi", draft.settings.dpi)).width(260.0).show_ui(ui, |ui| {
-                for v in RESOLUTIONS {
-                    ui.selectable_value(&mut draft.settings.dpi, v, format!("{v} dpi"));
-                }
-            });
-        });
-        ui.end_row();
     });
-    ui.add_space(6.0);
-    ui.add_enabled(ocr && !busy, widgets::checkbox(&mut draft.recognize, tl!("Recognize text after scanning")));
-    ui.add_space(8.0);
-    let pages = session.pages.len();
-    match &session.running {
-        Some(p) => {
-            let n = p.lock().map_or(0, |s| s.pages);
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label(crate::i18n::fmt(tl!("Scanning… page {n}"), &[("n", &(n + 1).to_string())]));
-            });
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+    let caption = tl!("Colour").to_string();
+    let entries: Vec<Entry<ColorMode>> = ColorMode::ALL.iter().map(|m| Entry::new(*m, mode_label(*m).to_string())).collect();
+    Field::new(caption.clone()).show(ui, |ui, _| {
+        if let Some(m) = Select::new(caption.clone(), Bind::given(f.settings.mode), &entries).show(ui).value().copied()
+            && !busy
+        {
+            f.settings.mode = m;
         }
-        None if pages > 0 => {
-            let label = if pages == 1 { tl!("1 page").to_string() } else { crate::i18n::fmt(tl!("{n} pages"), &[("n", &pages.to_string())]) };
-            ui.label(label);
+    });
+    let caption = tl!("Resolution").to_string();
+    let entries: Vec<Entry<u32>> = RESOLUTIONS.iter().map(|v| Entry::new(*v, format!("{v} dpi"))).collect();
+    Field::new(caption.clone()).show(ui, |ui, _| {
+        if let Some(v) = Select::new(caption.clone(), Bind::given(f.settings.dpi), &entries).show(ui).value().copied()
+            && !busy
+        {
+            f.settings.dpi = v;
+        }
+    });
+    if shown.ocr {
+        Checkbox::new(Bind::bound(&mut f.recognize)).label(tl!("Recognize text after scanning")).show(ui);
+    }
+    match shown.scanning {
+        Some(n) => {
+            Text::new(crate::i18n::fmt(tl!("Scanning… page {n}"), &[("n", &n.to_string())])).show(ui);
+        }
+        None if shown.pages == 1 => {
+            Text::new(tl!("1 page").to_string()).show(ui);
+        }
+        None if shown.pages > 1 => {
+            Text::new(crate::i18n::fmt(tl!("{n} pages"), &[("n", &shown.pages.to_string())])).show(ui);
         }
         None => {}
     }
-    if let Some(e) = &session.error {
-        ui.label(egui::RichText::new(e).small().color(t.text_muted));
+    if let Some(e) = &shown.error {
+        Text::new(e.clone()).shade(Shade::Muted).show(ui);
     }
-    if session.scanners.is_none() {
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
-    }
-    let can_scan = !busy && session.scanner(draft).is_some();
-    ui.add_space(6.0);
-    let (mut scan, mut done, mut cancel) = (false, false, false);
-    ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(pages > 0 && !busy, |ui| widgets::pill_button(ui, tl!("Done"), true)).inner.clicked() {
-                done = true;
-            }
-            if ui.add_enabled_ui(can_scan, |ui| widgets::pill_button(ui, tl!("Scan"), pages == 0)).inner.clicked() {
-                scan = true;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                cancel = true;
-            }
-        })
-    });
-    if search {
-        app.find_scanners();
-    }
-    (scan, done, cancel)
 }
 
 impl PdfCraftApp {
@@ -216,10 +252,11 @@ impl PdfCraftApp {
             return;
         }
         // Scanners found earlier are kept; the list is refreshed on every opening.
-        let scanners = self.scan.take().and_then(|s| s.scanners);
+        let scanners = self.scan.take().and_then(|s| s.scanners).or_else(|| self.scan_found.take());
         self.scan = Some(ScanSession { target, scanners, looking: None, pages: Vec::new(), running: None, error: None });
-        self.dialog = Some(crate::Dialog::Scan);
         self.find_scanners();
+        let dialog = ScanDialog { id: dialog_id("scan"), form: self.scan_draft.clone(), shown: self.scan_shown(), action: None };
+        crate::dialogs::host::open(self, dialog);
     }
 
     /// Create PDF ▸ Scanner, Scan & OCR ▸ Scan to PDF.
@@ -230,8 +267,58 @@ impl PdfCraftApp {
     /// Organize pages ▸ Insert from scanner: after the current page.
     pub(crate) fn scan_into_document(&mut self) {
         let Some((vi, id)) = self.active_ids() else { return };
-        let at = self.views.get(vi).map_or(0, |v| v.current.saturating_add(1));
+        let at = self.views.get(vi).map_or(0, |v| v.current().saturating_add(1));
         self.open_scan(ScanTarget::Insert { doc: id, at });
+    }
+
+    /// What the dialog shows of the work now.
+    fn scan_shown(&self) -> Shown {
+        let Some(s) = self.scan.as_ref() else { return Shown::default() };
+        let scanners = s.scanners.as_ref().map(|found| match found {
+            Ok(v) => Ok(v.iter().map(|x| Listed { id: x.id.clone(), name: x.display_name(), sources: x.sources.clone() }).collect()),
+            Err(e) => Err(e.to_string()),
+        });
+        let scanning = s.running.as_ref().map(|p| p.lock().map_or(0, |x| x.pages) + 1);
+        Shown {
+            insert: matches!(s.target, ScanTarget::Insert { .. }),
+            scanners,
+            pages: s.pages.len(),
+            scanning,
+            error: s.error.clone(),
+            ocr: pdfcraft_engine::ocr::available(),
+        }
+    }
+
+    /// Each pass: collects the workers' results, runs what the dialog asked for, refreshes what
+    /// it shows, and once it closes either makes the pages a document (Done) or drops them.
+    pub(crate) fn scan_pass(&mut self, ctx: &egui::Context) {
+        if self.scan.is_none() {
+            return;
+        }
+        self.poll_scan();
+        if let Some(result) = self.dialogs.take::<ScanDialog>() {
+            if let DialogResult::Ok(true) = result {
+                self.finish_scan(ctx);
+            }
+            self.close_scan();
+            return;
+        }
+        let Some(d) = self.dialogs.get_mut::<ScanDialog>() else { return };
+        let action = d.action.take();
+        self.scan_draft = d.form.clone();
+        match action {
+            Some(Action::Scan) => self.start_scan(),
+            Some(Action::Search) => self.find_scanners(),
+            None => {}
+        }
+        let shown = self.scan_shown();
+        let waiting = shown.scanners.is_none() || shown.scanning.is_some();
+        if let Some(d) = self.dialogs.get_mut::<ScanDialog>() {
+            d.shown = shown;
+        }
+        if waiting {
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        }
     }
 
     /// Look for scanners again, in the background.
@@ -284,7 +371,7 @@ impl PdfCraftApp {
 
     fn run_scan_work(&mut self, name: &str, work: impl FnOnce() + Send + 'static) {
         #[cfg(not(target_arch = "wasm32"))]
-        if self.run_inline {
+        if self.scan_inline {
             work();
         } else {
             std::thread::Builder::new().name(name.into()).spawn(work).ok();
@@ -322,8 +409,8 @@ impl PdfCraftApp {
     }
 
     /// Done: the scanned pages become a new document or go into the target one, then (if asked)
-    /// their text is recognised.
-    pub fn finish_scan(&mut self) {
+    /// the Recognize Text dialog opens on them.
+    pub fn finish_scan(&mut self, ctx: &egui::Context) {
         let Some(session) = self.scan.as_mut() else { return };
         let pages = std::mem::take(&mut session.pages);
         let target = session.target;
@@ -334,9 +421,12 @@ impl PdfCraftApp {
         let count = pages.len();
         let range = match target {
             ScanTarget::NewDocument => {
-                let created = self.session.create_from_scan(&pages).map_err(|e| e.to_string());
-                if let Err(e) = self.open_created_bytes("Scan.pdf", created) {
-                    self.notify_fmt("Couldn't create a PDF: {e}", &[("e", &e.to_string())]);
+                let opened = match self.session.create_from_scan(&pages) {
+                    Ok(bytes) => self.open_bytes(ctx, "Scan.pdf", None, bytes.to_vec()),
+                    Err(e) => Err(e.to_string()),
+                };
+                if let Err(e) = opened {
+                    self.notify_fmt("Couldn't create a PDF: {e}", &[("e", e.as_str())]);
                     return;
                 }
                 0..count
@@ -350,7 +440,7 @@ impl PdfCraftApp {
                 if let Some(info) = self.session.get(doc).map(|d| d.info.clone())
                     && let Some(view) = self.views.iter_mut().find(|v| v.id == doc)
                 {
-                    view.document_changed(&info);
+                    view.document_changed(ctx, &info);
                 }
                 if let Some(i) = self.views.iter().position(|v| v.id == doc) {
                     self.active = Some(i);
@@ -358,31 +448,89 @@ impl PdfCraftApp {
                 at..at + count
             }
         };
-        // The new pages show in the document; recognising their text reports its own progress.
+        // Recognize Text on the new pages, which reports its own progress.
         if self.scan_draft.recognize && pdfcraft_engine::ocr::available() {
             self.ocr_draft.pages = crate::ocr_ui::OcrPages::Range;
             self.ocr_draft.from = range.start + 1;
             self.ocr_draft.to = range.end;
-            self.start_ocr();
+            self.open_recognize_text(ctx);
         }
     }
 
-    /// The dialog closed: stop any scan and drop its pages.
+    /// The dialog closed: stop any scan and drop its pages (the scanners found are kept).
     pub(crate) fn close_scan(&mut self) {
         self.cancel_scan();
         if let Some(s) = self.scan.as_mut() {
             s.pages.clear();
             s.running = None;
             s.error = None;
+            s.looking = None;
+        }
+        if let Some(s) = self.scan.take() {
+            self.scan_found = s.scanners;
         }
     }
 
     /// Use `backend` instead of the system's scanners (tests, demos).
     pub fn set_scan_backend(&mut self, backend: Arc<dyn Backend>) {
         self.scan_backend = backend;
+        self.scan_found = None;
         if let Some(s) = self.scan.as_mut() {
             s.scanners = None;
             s.looking = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pdfcraft_engine::scan::Simulated;
+
+    /// White PNG pages, 425 × 550 pixels (8.5 × 11 in at 50 dpi).
+    fn pages(n: usize) -> Vec<ScannedPage> {
+        let img = craft_image_codecs::Image::from_u8(425, 550, craft_image_codecs::ChannelLayout::Rgb, vec![255; 425 * 550 * 3]).expect("an image");
+        let png = craft_image_codecs::encode(&img, craft_image_codecs::Format::Png, &craft_image_codecs::EncodeOptions::default()).expect("a PNG");
+        (0..n).map(|i| ScannedPage { name: format!("page-{i}.png"), bytes: png.clone(), dpi: 50 }).collect()
+    }
+
+    fn app(sim: Simulated) -> (PdfCraftApp, egui::Context) {
+        let ctx = egui::Context::default();
+        let mut app = PdfCraftApp::new(&ctx);
+        app.scan_inline = true;
+        app.set_scan_backend(Arc::new(sim));
+        (app, ctx)
+    }
+
+    #[test]
+    fn scanned_pages_collect_until_done_makes_a_new_pdf() {
+        let (mut app, ctx) = app(Simulated::with_pages(pages(3)));
+        app.scan_draft.settings.dpi = 50;
+        // The feeder scans every page at once (the flatbed one per scan).
+        app.scan_draft.settings.source = Source::Feeder;
+        app.scan_to_new_document();
+        assert!(app.dialogs.get_mut::<ScanDialog>().is_some(), "the dialog is open");
+        let shown = app.scan_shown();
+        assert!(matches!(&shown.scanners, Some(Ok(v)) if !v.is_empty()), "the simulated scanner is found: {shown:?}");
+        app.start_scan();
+        assert_eq!(app.scan.as_ref().map(|s| s.pages.len()), Some(3), "the pages are kept while the dialog is open");
+        let before = app.views.len();
+        app.finish_scan(&ctx);
+        assert_eq!(app.views.len(), before + 1, "Done opens the new PDF");
+        let id = app.active_ids().map(|(_, id)| id).expect("an active document");
+        assert_eq!(app.session.get(id).map(|d| d.info.pages.len()), Some(3));
+    }
+
+    #[test]
+    fn a_closed_dialog_drops_its_pages_but_keeps_the_scanners() {
+        let (mut app, _) = app(Simulated::with_pages(pages(1)));
+        app.scan_to_new_document();
+        app.start_scan();
+        app.close_scan();
+        assert!(app.scan.is_none());
+        assert!(matches!(&app.scan_found, Some(Ok(v)) if !v.is_empty()));
+        // Opened again: the scanners are there at once, the pages are gone.
+        app.scan_to_new_document();
+        assert_eq!(app.scan.as_ref().map(|s| s.pages.len()), Some(0));
     }
 }

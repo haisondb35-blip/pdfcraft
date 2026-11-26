@@ -98,6 +98,7 @@ pub(crate) mod icons;
 pub(crate) mod notices;
 mod persist;
 mod platform;
+mod scan_ui;
 #[cfg(not(target_arch = "wasm32"))]
 mod script_dialog;
 mod state;
@@ -546,6 +547,14 @@ pub struct PdfCraftApp {
     pub a11y_options: a11y_ui::A11yOptions,
     /// Scan & OCR: the Recognize Text choices and the running job.
     pub ocr_draft: ocr_ui::OcrDraft,
+    /// Scan & OCR ▸ Scan: the dialog's choices, the open dialog's pages and jobs, the scanners
+    /// found last time, where scanners are found (the system's; tests use a simulated one) and
+    /// whether the scanner work runs on this thread (tests).
+    pub scan_draft: scan_ui::ScanDraft,
+    pub scan: Option<scan_ui::ScanSession>,
+    pub(crate) scan_found: Option<Result<Vec<pdfcraft_engine::scan::Scanner>, pdfcraft_engine::scan::ScanError>>,
+    pub scan_backend: std::sync::Arc<dyn pdfcraft_engine::scan::Backend>,
+    pub scan_inline: bool,
     pub ocr_run: Option<ocr_ui::OcrRun>,
     pub ocr_batch: Option<std::sync::Arc<JobCount>>,
     /// Pages being recognized, by document.

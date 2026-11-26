@@ -415,6 +415,11 @@ impl PdfCraftApp {
             sig_open: Default::default(),
             a11y_options: a11y_ui::A11yOptions::default(),
             ocr_draft: ocr_ui::OcrDraft::default(),
+            scan_draft: crate::scan_ui::ScanDraft::default(),
+            scan: None,
+            scan_found: None,
+            scan_backend: pdfcraft_engine::scan::system(),
+            scan_inline: false,
             ocr_run: None,
             ocr_batch: None,
             #[cfg(target_arch = "wasm32")]
