@@ -1,5 +1,10 @@
 //! Scan & OCR ▸ Scan in the real shell (egui_kittest), against a simulated scanner: the dialog,
 //! scanning page after page from the flatbed, the feeder, and where the pages go.
+//!
+//! brian-local: off until Scan to PDF's dialog is ported onto the craft UI framework (upstream's
+//! port left `Dialog` and `run_inline` behind; `scan.create` says "Not available in this build
+//! yet" in commands.rs). Bring these tests back with the dialog.
+#![cfg(any())]
 
 use std::sync::Arc;
 

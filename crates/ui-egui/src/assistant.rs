@@ -1812,15 +1812,15 @@ mod tests {
 
     #[test]
     fn ai_assistant_tools_open_the_claude_pane() {
-        let mut app = crate::PdfCraftApp::new();
+        let mut app = crate::PdfCraftApp::new(&egui::Context::default());
         assert!(tool(&mut app, "ai.summary"));
         assert!(app.assistant_open);
         assert_eq!(app.assistant.queued.as_deref(), Some(SUMMARIZE));
-        let mut app = crate::PdfCraftApp::new();
+        let mut app = crate::PdfCraftApp::new(&egui::Context::default());
         assert!(tool(&mut app, "ai.translate"));
         assert!(app.assistant_open && app.assistant.focus);
         assert_eq!(app.assistant.input, TRANSLATE);
-        let mut app = crate::PdfCraftApp::new();
+        let mut app = crate::PdfCraftApp::new(&egui::Context::default());
         assert!(tool(&mut app, "ai.ask"));
         assert!(app.assistant_open && app.assistant.focus && app.assistant.queued.is_none());
         // Other commands are left to the registry.
