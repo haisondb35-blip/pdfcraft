@@ -339,6 +339,19 @@ impl Store {
             let _ = std::fs::write(self.dir.join("settings.json"), v.to_string());
         }
     }
+
+    /// The Claude model last chosen in any Craft app's pane.
+    pub fn model_choice(&self) -> Option<String> {
+        self.settings().get("claude_model").and_then(Value::as_str).map(str::to_string)
+    }
+
+    pub fn set_model_choice(&self, key: &str) {
+        let mut v = self.settings();
+        v["claude_model"] = json!(key);
+        if std::fs::create_dir_all(&self.dir).is_ok() {
+            let _ = std::fs::write(self.dir.join("settings.json"), v.to_string());
+        }
+    }
 }
 
 impl super::Assistant {
@@ -514,6 +527,8 @@ mod tests {
         s.set_save_with_file(true);
         s.set_provider_choice("ollama");
         assert_eq!(s.provider_choice().as_deref(), Some("ollama"));
+        s.set_model_choice("opus");
+        assert_eq!((s.model_choice().as_deref(), s.provider_choice().as_deref()), (Some("opus"), Some("ollama")));
         assert!(s.save_with_file(), "one choice doesn't lose the other");
         let _ = std::fs::remove_dir_all(&d);
     }
