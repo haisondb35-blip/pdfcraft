@@ -64,9 +64,12 @@ fn window_body(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     });
     // brian-local: the AI Assistant pane (View ▸ AI Assistant), beside the dock.
     if app.assistant_open {
-        egui::Panel::right("claude_pane").resizable(true).default_size(340.0).size_range(260.0..=560.0).frame(egui::Frame::NONE.inner_margin(12)).show(
-            ui,
-            |ui| {
+        egui::Panel::right("claude_pane")
+            .resizable(true)
+            .default_size(340.0)
+            .size_range(260.0..=560.0)
+            .frame(egui::Frame::NONE.inner_margin(12))
+            .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("AI Assistant").strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -77,8 +80,7 @@ fn window_body(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 });
                 ui.add_space(6.0);
                 crate::assistant::pane(app, ui);
-            },
-        );
+            });
     }
     let veil = DropVeil::new(tl!("Drop to open the files"));
     let veil = if organize { veil.positional() } else { veil };

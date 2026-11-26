@@ -4,9 +4,9 @@ use super::state::{OpenOutcome, OpenRequest, PendingRemoteLink};
 #[cfg(not(target_arch = "wasm32"))]
 use super::{APP_INFO, PendingDestination, PendingOpen, UPDATE_APP, open_worker, recovery};
 use super::{
-    CommentClip, assistant, DocId, DocView, PdfCraftApp, PrintDraft, PropsTab, RedactPrefs, RedactSearchDraft, Session, a11y_ui, actions_ui, canvas, chrome,
-    combine_ui, comments, content_ui, dialogs, edit_text_ui, export_ui, fill_sign, i18n, measure_ui, object_ui, ocr_ui, ocr_verify, panes, persist,
-    prepare, print_paper, print_ui, rename_ui, scan_clean_ui, scroll_speed, side_panels, sign_ui, stamps_ui, ui_scale, workflows,
+    CommentClip, DocId, DocView, PdfCraftApp, PrintDraft, PropsTab, RedactPrefs, RedactSearchDraft, Session, a11y_ui, actions_ui, assistant, canvas,
+    chrome, combine_ui, comments, content_ui, dialogs, edit_text_ui, export_ui, fill_sign, i18n, measure_ui, object_ui, ocr_ui, ocr_verify, panes,
+    persist, prepare, print_paper, print_ui, rename_ui, scan_clean_ui, scroll_speed, side_panels, sign_ui, stamps_ui, ui_scale, workflows,
 };
 
 use std::hash::Hash;

@@ -1577,7 +1577,9 @@ pub fn pane(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
         if a.can_save_with_file() {
             let mut on = a.save_with_file();
             let tip = "Also keep this conversation inside the file when it is saved, so it opens with the file on another computer. Off: kept only on this computer.";
-            if ui.add(egui::Checkbox::new(&mut on, "Save chat with file")).on_hover_text(tip).changed() {
+            use craft::ui::contract::{Props as _, Show as _};
+            let picked = craft::ui::choice::Checkbox::new(craft::ui::contract::Bind::bound(&mut on)).label("Save chat with file").tooltip(tip).show(ui);
+            if picked.value().is_some() {
                 a.set_save_with_file(on);
             }
         }
