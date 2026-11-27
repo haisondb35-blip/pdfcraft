@@ -80,6 +80,9 @@ jobs:
           cargo test --workspace $extra --no-fail-fast 2>&1 | tee dist/tests.log
       - name: Test summary
         if: ${{ inputs.tests && always() }}
+        # A test run that never finished (a compile error, the timeout) leaves no summary to
+        # print; that must not hold the MSI back either.
+        continue-on-error: true
         run: |
           [ -f dist/tests.log ] || exit 0
           grep -E "test result" dist/tests.log | awk '{p+=$4; f+=$6} END {print "passed", p, "failed", f}' | tee -a "$GITHUB_STEP_SUMMARY"
