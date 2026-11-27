@@ -1853,15 +1853,18 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
         let rail_width = 50.0;
         let in_rail = |r: egui::Rect| if on_left { r.right() <= rail_width } else { r.left() >= width - rail_width };
         let rail = |h: &Harness<'static, PdfCraftApp>, label: &str| {
-            h.query_all_by_label(label).map(|n| n.rect()).find(|r| in_rail(*r)).unwrap_or_else(|| panic!("{label} in the rail ({side:?})"))
+            h.query_all_by_label(label).map(|n| n.rect()).find(|r| in_rail(*r)).unwrap_or_else(|| panic!("{label} in the rail"))
         };
         let page = h.get(By::new().role(egui::accesskit::Role::TextInput).label("Current page")).rect();
         assert!(in_rail(page) && page.bottom() <= height, "page field {page:?} in the rail");
         let dock_label = if on_left { "Dock navigation rail on Right" } else { "Dock navigation rail on Left" };
         let dock = rail(&h, dock_label);
-        assert!(dock.top() >= 0.0 && dock.bottom() <= height, "dock button {dock:?} inside the window");
+        assert!(dock.top() >= page.bottom() && dock.bottom() <= height, "dock button {dock:?} stays below navigation and inside the window");
+        assert!(rail(&h, "Comments").bottom() <= page.top(), "the first button sits above the page field");
+        assert!(rail(&h, "Tags").top() >= page.top(), "the window is short enough that the buttons must scroll");
         let first = rail(&h, "Comments");
-        h.event(egui::Event::PointerMoved(first.center()));
+        let over = first.center();
+        h.event(egui::Event::PointerMoved(over));
         for _ in 0..8 {
             h.event(egui::Event::MouseWheel {
                 unit: egui::MouseWheelUnit::Point,
